@@ -253,6 +253,43 @@ case err != nil:
 }
 ```
 
+### 7. What you can put in a QR code
+
+A QR code stores **text and nothing more**. What makes a phone offer to join a
+network, save a contact or open a map is the *shape* of that text — a convention
+the scanner recognises. So this library needs to know nothing about these
+formats: you build the string, it encodes it.
+
+| What you want | The text to encode |
+|---|---|
+| Website | `https://example.com` |
+| Plain text | anything at all |
+| WiFi | `WIFI:T:WPA;S:ssid;P:password;H:false;;` |
+| Contact (vCard) | `BEGIN:VCARD` … `END:VCARD` |
+| Contact (MeCard) | `MECARD:N:Surname,Given;TEL:…;;` |
+| Email | `mailto:you@example.com?subject=…&body=…` |
+| SMS | `SMSTO:+6281234567890:message` |
+| Phone call | `tel:+6281234567890` |
+| WhatsApp | `https://wa.me/6281234567890?text=…` |
+| Map location | `geo:-6.175392,106.827153` |
+| Calendar event | `BEGIN:VEVENT` … `END:VEVENT` |
+
+Working code for every one of these lives in
+[`qr/example_payload_test.go`](qr/example_payload_test.go) and on
+[pkg.go.dev](https://pkg.go.dev/github.com/farizfadian/go-qrcode/qr#pkg-examples).
+They are compiled and run by `go test`, so they cannot fall out of date.
+
+Two traps worth knowing:
+
+**WiFi passwords need escaping.** The characters `\ ; , : "` are syntax in the
+WiFi format. A password containing a semicolon will silently truncate the field
+and the network will not join. The example includes a small `wifiEscape` helper.
+
+**Longer text needs a bigger image, not more error correction.** A vCard makes a
+much larger grid than a MeCard carrying the same details — 57 modules against 37
+in the examples. At a fixed `Width`, more modules means smaller modules, which
+is *harder* to scan. Raise `Width` instead.
+
 ---
 
 ## 💻 CLI
