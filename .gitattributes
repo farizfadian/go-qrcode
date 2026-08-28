@@ -1,0 +1,8 @@
+# Normalise to LF in the repository. Developed on Windows, consumed everywhere;
+# CRLF in .go files trips gofmt and makes golden-file diffs noisy.
+* text=auto eol=lf
+
+# Golden images are binary and must never be line-ending translated.
+*.png binary
+*.jpg binary
+*.jpeg binary
