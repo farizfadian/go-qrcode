@@ -9,6 +9,7 @@ import (
 	"image/png"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/farizfadian/go-qrcode/internal/render"
 )
@@ -31,6 +32,17 @@ func New(opts Options) (*QR, error) {
 	}
 	if opts.Logo != nil {
 		return nil, ErrLogoUnsupported
+	}
+	// Reject a shape this build does not implement. Falling back to square
+	// would hand back a code that silently does not look like what was asked
+	// for, which is harder to notice than an error.
+	if _, ok := dotFuncs[opts.Dots.Type]; !ok {
+		return nil, fmt.Errorf("%w: dot shape %q; available: %s",
+			ErrUnknownShape, opts.Dots.Type, strings.Join(DotTypeNames(), ", "))
+	}
+	if _, ok := cornerFuncs[opts.Corners.Type]; !ok {
+		return nil, fmt.Errorf("%w: corner shape %q; available: %s",
+			ErrUnknownShape, opts.Corners.Type, strings.Join(CornerTypeNames(), ", "))
 	}
 	o := opts.withDefaults()
 
