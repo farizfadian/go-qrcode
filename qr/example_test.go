@@ -97,12 +97,13 @@ func ExampleQR_ECC() {
 }
 
 // Ask the library which shapes the build supports rather than hard-coding a
-// list that can fall out of step with it.
+// list that can fall out of step with it. This output grows as shapes land,
+// and the test fails if the documentation does not keep up.
 func ExampleDotTypeNames() {
 	fmt.Println(qr.DotTypeNames())
 	fmt.Println(qr.CornerTypeNames())
 	// Output:
-	// [square]
+	// [square stripe stripe-column stripe-row]
 	// [square]
 }
 
