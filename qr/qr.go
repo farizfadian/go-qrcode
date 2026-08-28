@@ -125,6 +125,20 @@ func (q *QR) Modules() int { return q.modules }
 // requested one when Options.ECC was ECCAuto.
 func (q *QR) ECC() ECCLevel { return q.ecc }
 
+// SVG writes the code to w as standalone SVG markup.
+func (q *QR) SVG(w io.Writer) error {
+	s, err := q.SVGString()
+	if err != nil {
+		return err
+	}
+	_, err = io.WriteString(w, s)
+	return err
+}
+
+// SVGString returns the code as standalone SVG markup. Its geometry is the same
+// as Image produces: both renderers consume one scene.
+func (q *QR) SVGString() (string, error) { return render.SVG(q.sc) }
+
 // flatten composites src over opaque white. JPEG has no alpha channel, so a
 // transparent background would otherwise encode as black.
 func flatten(src image.Image) image.Image {

@@ -128,6 +128,41 @@ func TestQRIsSafeForConcurrentUse(t *testing.T) {
 	}
 }
 
+func TestSVGAndPNGDescribeTheSameGeometry(t *testing.T) {
+	requireDecodableBaseline(t, testURL, ECCAuto)
+	q, err := New(Options{Content: testURL, Width: 512})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	svg, err := q.SVGString()
+	if err != nil {
+		t.Fatalf("SVGString: %v", err)
+	}
+	if !strings.Contains(svg, `viewBox="0 0 512 512"`) {
+		t.Errorf("viewBox missing or wrong:\n%s", svg[:min(200, len(svg))])
+	}
+	// Two path elements: one for all dots, one for all corners.
+	if n := strings.Count(svg, "<path "); n != 2 {
+		t.Errorf("path elements = %d, want 2", n)
+	}
+	// The rasterised form must still decode, proving the shared scene is sound.
+	assertDecodes(t, q.Image(), testURL)
+}
+
+func TestSVGWritesToAWriter(t *testing.T) {
+	q, err := New(Options{Content: testURL})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	var buf bytes.Buffer
+	if err := q.SVG(&buf); err != nil {
+		t.Fatalf("SVG: %v", err)
+	}
+	if !strings.HasPrefix(buf.String(), "<svg ") || !strings.HasSuffix(buf.String(), "</svg>") {
+		t.Errorf("output is not a standalone svg document: %.60s...", buf.String())
+	}
+}
+
 func TestAutoECCScalesWithContentLength(t *testing.T) {
 	for _, tc := range []struct {
 		content string
