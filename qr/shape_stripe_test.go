@@ -46,6 +46,15 @@ func (f *fakeContext) Dark(x, y int) bool {
 	return f.dark[i] && !f.consumed[i]
 }
 
+// Adjacent ignores consumption: a module that has already been drawn is still
+// visually next to this one.
+func (f *fakeContext) Adjacent(x, y int) bool {
+	if x < 0 || y < 0 || x >= f.n || y >= f.n {
+		return false
+	}
+	return f.dark[y*f.n+x]
+}
+
 func (f *fakeContext) Consume(x, y int) {
 	if x >= 0 && y >= 0 && x < f.n && y < f.n {
 		f.consumed[y*f.n+x] = true

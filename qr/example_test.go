@@ -103,22 +103,22 @@ func ExampleDotTypeNames() {
 	fmt.Println(qr.DotTypeNames())
 	fmt.Println(qr.CornerTypeNames())
 	// Output:
-	// [diamond dot dot-small rounded square star stripe stripe-column stripe-row tile]
+	// [diamond dot dot-small fluid fluid-line rounded square star stripe stripe-column stripe-row tile]
 	// [square]
 }
 
-// A shape named in the specification but not implemented is rejected, rather
-// than quietly falling back to square.
+// A name this build cannot draw is rejected, rather than quietly falling back
+// to square, and the error names what is available instead.
 func ExampleParseDotType() {
-	if _, err := qr.ParseDotType("square"); err == nil {
-		fmt.Println("square: ok")
+	if _, err := qr.ParseDotType("fluid"); err == nil {
+		fmt.Println("fluid: ok")
 	}
-	if _, err := qr.ParseDotType("fluid"); errors.Is(err, qr.ErrUnknownShape) {
-		fmt.Println("fluid: rejected, not implemented in this build")
+	if _, err := qr.ParseDotType("sparkle"); errors.Is(err, qr.ErrUnknownShape) {
+		fmt.Println("sparkle: rejected")
 	}
 	// Output:
-	// square: ok
-	// fluid: rejected, not implemented in this build
+	// fluid: ok
+	// sparkle: rejected
 }
 
 // Errors are sentinel values, so callers can branch on what went wrong.

@@ -107,14 +107,25 @@ func TestTooManyPositionalArgsIsAUsageError(t *testing.T) {
 // The CLI must reject a shape this build cannot draw, and must say what it can
 // draw. It reads that list from the library's registry, so the message stays
 // correct as shapes are added without any edit here.
-func TestUnimplementedShapeIsRejectedAndListsWhatIsAvailable(t *testing.T) {
+func TestUnknownShapeIsRejectedAndListsWhatIsAvailable(t *testing.T) {
 	out := filepath.Join(t.TempDir(), "qr.png")
-	code, _, errOut := runArgs(t, "-dots", "fluid", "-out", out, sample)
+	code, _, errOut := runArgs(t, "-dots", "sparkle", "-out", out, sample)
 	if code == 0 {
-		t.Fatal("exit 0; an unimplemented shape must fail")
+		t.Fatal("exit 0; a shape this build cannot draw must fail")
 	}
 	if !strings.Contains(errOut, "square") {
 		t.Errorf("stderr does not list available shapes: %s", errOut)
+	}
+}
+
+// A shape that this build does draw must be accepted without any edit to the
+// CLI, because the CLI reads the list from the library.
+func TestNewlyLandedShapesAreAcceptedWithoutCLIChanges(t *testing.T) {
+	for _, shape := range []string{"fluid", "fluid-line", "stripe", "star", "diamond"} {
+		out := filepath.Join(t.TempDir(), shape+".png")
+		if code, _, errOut := runArgs(t, "-dots", shape, "-out", out, sample); code != 0 {
+			t.Errorf("-dots %s: exit %d, stderr: %s", shape, code, errOut)
+		}
 	}
 }
 

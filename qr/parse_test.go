@@ -46,21 +46,16 @@ func TestParseDotType(t *testing.T) {
 	}
 }
 
-func TestParseDotTypeRejectsUnimplementedShapeWithAHelpfulMessage(t *testing.T) {
-	// "fluid" is a real shape name but is not implemented yet. Rejecting it is
-	// the point: silently drawing squares instead would be worse than failing.
-	_, err := ParseDotType("fluid")
+func TestParseDotTypeRejectsNonsenseAndListsWhatIsAvailable(t *testing.T) {
+	// The rejection must say what the caller could have asked for, otherwise a
+	// typo leaves them guessing. The list comes from the registry, so it stays
+	// correct as shapes are added.
+	_, err := ParseDotType("banana")
 	if !errors.Is(err, ErrUnknownShape) {
 		t.Fatalf("error = %v, want ErrUnknownShape", err)
 	}
 	if !strings.Contains(err.Error(), "square") {
 		t.Errorf("error does not list the available shapes: %v", err)
-	}
-}
-
-func TestParseDotTypeRejectsNonsense(t *testing.T) {
-	if _, err := ParseDotType("banana"); !errors.Is(err, ErrUnknownShape) {
-		t.Fatalf("error = %v, want ErrUnknownShape", err)
 	}
 }
 
@@ -72,8 +67,8 @@ func TestParseCornerType(t *testing.T) {
 	if got != CornerSquare {
 		t.Errorf("got %v, want CornerSquare", got)
 	}
-	if _, err := ParseCornerType("circle-star"); !errors.Is(err, ErrUnknownShape) {
-		t.Errorf("error = %v, want ErrUnknownShape for an unimplemented corner", err)
+	if _, err := ParseCornerType("banana"); !errors.Is(err, ErrUnknownShape) {
+		t.Errorf("error = %v, want ErrUnknownShape", err)
 	}
 }
 
@@ -98,17 +93,23 @@ func TestParseECCLevel(t *testing.T) {
 	}
 }
 
+// An out-of-range enum value stands in for "a shape this build cannot draw".
+// Naming a real-but-unimplemented shape here would work only until that shape
+// landed, and then quietly stop testing anything.
 func TestNewRejectsAnUnimplementedDotType(t *testing.T) {
 	// Without this, New would silently fall back to square and hand back a code
 	// that does not look like what was asked for.
-	_, err := New(Options{Content: testURL, Dots: DotOptions{Type: DotFluid}})
+	_, err := New(Options{Content: testURL, Dots: DotOptions{Type: DotType(99)}})
 	if !errors.Is(err, ErrUnknownShape) {
 		t.Fatalf("error = %v, want ErrUnknownShape", err)
+	}
+	if !strings.Contains(err.Error(), "DotType(99)") {
+		t.Errorf("error does not name the offending value: %v", err)
 	}
 }
 
 func TestNewRejectsAnUnimplementedCornerType(t *testing.T) {
-	_, err := New(Options{Content: testURL, Corners: CornerOptions{Type: CornerCircle}})
+	_, err := New(Options{Content: testURL, Corners: CornerOptions{Type: CornerType(99)}})
 	if !errors.Is(err, ErrUnknownShape) {
 		t.Fatalf("error = %v, want ErrUnknownShape", err)
 	}

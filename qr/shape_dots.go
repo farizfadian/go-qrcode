@@ -18,6 +18,8 @@ var dotFuncs = map[DotType]dotFunc{
 	DotRounded:      dotRounded,
 	DotDiamond:      dotDiamond,
 	DotStar:         dotStar,
+	DotFluid:        dotFluid,
+	DotFluidLine:    dotFluidLine,
 	DotStripe:       dotStripe,
 	DotStripeRow:    dotStripeRow,
 	DotStripeColumn: dotStripeColumn,
@@ -120,6 +122,79 @@ func dotStar(c ShapeContext, x, y int) render.Path {
 	b.QuadTo(cx, cy, cx-h, cy-h)
 	b.Close()
 	return b.Path().Rotate(math.Pi/4, cx, cy)
+}
+
+// dotFluid fills the module and rounds only the corners where both adjoining
+// neighbours are absent, so a run of modules melts into one continuous stroke
+// with rounded ends.
+//
+// The reference library draws a circle and then patches the square quadrants
+// with fills, which cannot be one path. A rounded rectangle whose per-corner
+// radius is either s/2 or zero is mathematically the same figure and needs no
+// patching.
+func dotFluid(c ShapeContext, x, y int) render.Path {
+	return fluidPath(c, x, y, false)
+}
+
+// dotFluidLine is dotFluid with concave fillets bridging the gap to a diagonal
+// neighbour below, so diagonal runs read as continuous too.
+func dotFluidLine(c ShapeContext, x, y int) render.Path {
+	return fluidPath(c, x, y, true)
+}
+
+func fluidPath(c ShapeContext, x, y int, withFillets bool) render.Path {
+	px, py, s := c.Rect(x, y)
+	north, east, south, west := neighbours4(c, x, y)
+	c.Consume(x, y)
+
+	// A corner is rounded only when nothing adjoins it on either side.
+	r := s / 2
+	corner := func(a, b bool) float64 {
+		if !a && !b {
+			return r
+		}
+		return 0
+	}
+	body := render.RoundRect(px, py, s, s,
+		corner(north, west),
+		corner(east, north),
+		corner(south, east),
+		corner(south, west),
+	)
+
+	// A fillet bridges a diagonal gap, so it only makes sense when the space
+	// directly below is empty.
+	if !withFillets || south {
+		return body
+	}
+	cx, cy := px+s/2, py+s/2
+	if c.Adjacent(x-1, y+1) {
+		body = body.Append(fillet(cx-s, cy, 0, cx, cy+s, math.Pi, r))
+	}
+	if c.Adjacent(x+1, y+1) {
+		body = body.Append(fillet(cx+s, cy, math.Pi/2, cx, cy+s, 1.5*math.Pi, r))
+	}
+	return body
+}
+
+// fillet returns the concave wedge bounded by two quarter arcs, each bulging
+// inward, that joins a module to its diagonal neighbour below.
+//
+// It is reversed so its winding matches the module body it is appended to.
+// Under the non-zero fill rule an opposite winding would punch the overlapping
+// quadrant out instead of filling it, turning the join into a notch.
+func fillet(c1x, c1y, from1, c2x, c2y, from2, r float64) render.Path {
+	var b render.Builder
+	start, a1, a2, end := render.QuarterArc(c1x, c1y, r, from1)
+	b.MoveTo(start.X, start.Y)
+	b.CubeTo(a1.X, a1.Y, a2.X, a2.Y, end.X, end.Y)
+
+	start, a1, a2, end = render.QuarterArc(c2x, c2y, r, from2)
+	b.LineTo(start.X, start.Y)
+	b.CubeTo(a1.X, a1.Y, a2.X, a2.Y, end.X, end.Y)
+	b.Close()
+
+	return b.Path().Reverse()
 }
 
 // run is a rectangle of modules a stripe shape may merge into one figure,

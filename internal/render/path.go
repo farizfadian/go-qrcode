@@ -218,3 +218,23 @@ func RoundRect(x, y, w, h, rTL, rTR, rBR, rBL float64) Path {
 func Circle(cx, cy, r float64) Path {
 	return RoundRect(cx-r, cy-r, 2*r, 2*r, r, r, r, r)
 }
+
+// QuarterArc returns the cubic that approximates the ninety-degree arc of the
+// circle centred at (cx, cy) with radius r, starting at angle `from` radians
+// and sweeping towards increasing angle.
+//
+// Angles follow the screen convention: zero points along +x and they increase
+// towards +y, which is downward. The approximation is the same one RoundRect
+// uses for its corners, within about 0.02% of the true arc.
+func QuarterArc(cx, cy, r, from float64) (start, c1, c2, end Point) {
+	to := from + math.Pi/2
+	sinFrom, cosFrom := math.Sincos(from)
+	sinTo, cosTo := math.Sincos(to)
+
+	start = Point{cx + r*cosFrom, cy + r*sinFrom}
+	end = Point{cx + r*cosTo, cy + r*sinTo}
+	// The tangent at angle t is (-sin t, cos t); step along it by kappa*r.
+	c1 = Point{start.X - kappa*r*sinFrom, start.Y + kappa*r*cosFrom}
+	c2 = Point{end.X + kappa*r*sinTo, end.Y - kappa*r*cosTo}
+	return start, c1, c2, end
+}
