@@ -19,7 +19,13 @@ Nothing has been tagged yet. Everything below ships in the first release.
   many goroutines at once.
 - Output as PNG, JPEG, SVG and `image.Image`, all from one shared scene
   description so the raster and vector forms cannot drift apart.
-- `square` dot shape and `square` finder-pattern shape.
+- All twelve dot shapes: `square`, `dot`, `dot-small`, `tile`, `rounded`,
+  `diamond`, `star`, `fluid`, `fluid-line`, `stripe`, `stripe-row` and
+  `stripe-column`. The last five are neighbour-aware, merging runs of modules
+  into continuous strokes.
+- All seven finder-pattern shapes: `square`, `rounded`, `circle`,
+  `rounded-circle`, `circle-rounded`, `circle-star` and `circle-diamond`, with
+  independently configurable inner and outer radii.
 - Independent foreground, background, dot and finder colours; hex with or
   without `#`, and `#00000000` for a transparent background.
 - All four error-correction levels plus automatic selection driven by content
@@ -56,13 +62,21 @@ Three deviations are deliberate:
   only whether a module is dark.
 - **An unimplemented shape is an error.** Rather than silently falling back to
   `square`, `New` reports which shapes the build supports.
+- **`circle-diamond` is inscribed in the 3x3 core.** The reference rotates a
+  full three-module square, giving a diagonal of 4.24 modules that nearly fills
+  the ring's five-module gap. A reader looks for dark:light:dark:light:dark in
+  the ratio 1:1:3:1:1 through the finder's centre; the reference geometry
+  measures 1:0.38:4.24:0.38:1 and is not recognised as a finder pattern at all.
+  Inscribing the diamond restores exactly 1:1:3:1:1. Measured, not assumed: the
+  reference proportions fail to decode and these succeed.
 
 ### Not yet implemented
 
-- Eleven of the twelve dot shapes and six of the seven finder shapes.
 - Logo support: `Options.Logo` is defined so the API is stable, but `New`
   rejects it with `ErrLogoUnsupported`.
-- A measured contrast threshold for `ErrLowContrast`.
+- A measured contrast threshold for `ErrLowContrast`, and a check for inverted
+  polarity.
+- Golden-image tests and benchmarks.
 
 ---
 

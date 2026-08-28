@@ -104,7 +104,7 @@ func ExampleDotTypeNames() {
 	fmt.Println(qr.CornerTypeNames())
 	// Output:
 	// [diamond dot dot-small fluid fluid-line rounded square star stripe stripe-column stripe-row tile]
-	// [square]
+	// [circle circle-diamond circle-rounded circle-star rounded rounded-circle square]
 }
 
 // A name this build cannot draw is rejected, rather than quietly falling back

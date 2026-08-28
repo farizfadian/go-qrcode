@@ -24,8 +24,40 @@ still scans with a round-trip decode test.
 | <img src="docs/images/example-default.png" width="150"> | <img src="docs/images/example-coloured.png" width="150"> | <img src="docs/images/example-brand.png" width="150"> | <img src="docs/images/example-margin.png" width="150"> |
 | zero-value options | dots and finders coloured separately | one custom foreground | `Margin: 8` |
 
-Every image above is verified to scan by an automated test before it reaches
-this page.
+Every image on this page is decoded by a real QR reader in CI before it ships.
+
+### The twelve dot shapes
+
+| `square` | `dot` | `dot-small` | `tile` |
+|:---:|:---:|:---:|:---:|
+| <img src="docs/images/dot-square.png" width="130"> | <img src="docs/images/dot-dot.png" width="130"> | <img src="docs/images/dot-dot-small.png" width="130"> | <img src="docs/images/dot-tile.png" width="130"> |
+
+| `rounded` | `diamond` | `star` | `fluid` |
+|:---:|:---:|:---:|:---:|
+| <img src="docs/images/dot-rounded.png" width="130"> | <img src="docs/images/dot-diamond.png" width="130"> | <img src="docs/images/dot-star.png" width="130"> | <img src="docs/images/dot-fluid.png" width="130"> |
+
+| `fluid-line` | `stripe` | `stripe-row` | `stripe-column` |
+|:---:|:---:|:---:|:---:|
+| <img src="docs/images/dot-fluid-line.png" width="130"> | <img src="docs/images/dot-stripe.png" width="130"> | <img src="docs/images/dot-stripe-row.png" width="130"> | <img src="docs/images/dot-stripe-column.png" width="130"> |
+
+`fluid`, `fluid-line` and the three `stripe` shapes are **neighbour-aware**: a
+module's figure depends on what surrounds it, so runs merge into continuous
+strokes instead of staying as separate marks.
+
+### The seven finder-pattern shapes
+
+Shown in red against grey dots so the finder styling is easy to see.
+
+| `square` | `rounded` | `circle` | `rounded-circle` |
+|:---:|:---:|:---:|:---:|
+| <img src="docs/images/corner-square.png" width="130"> | <img src="docs/images/corner-rounded.png" width="130"> | <img src="docs/images/corner-circle.png" width="130"> | <img src="docs/images/corner-rounded-circle.png" width="130"> |
+
+| `circle-rounded` | `circle-star` | `circle-diamond` | |
+|:---:|:---:|:---:|:---:|
+| <img src="docs/images/corner-circle-rounded.png" width="130"> | <img src="docs/images/corner-circle-star.png" width="130"> | <img src="docs/images/corner-circle-diamond.png" width="130"> | |
+
+All **84 combinations** of dot shape and finder shape are covered by a decode
+test.
 
 ---
 
@@ -397,21 +429,18 @@ works, verified by tests.
 **Working today**
 
 - PNG, JPEG, SVG and `image.Image` output from one shared geometry
-- `square` dots and `square` finder patterns
+- **All twelve dot shapes**, including the neighbour-aware ones
+- **All seven finder-pattern shapes**, with independent radii
 - Independent foreground, dot and finder colours; transparent backgrounds
 - All four error-correction levels, plus automatic selection
 - The `qrgen` CLI
 
 **Not yet**
 
-- Eleven of the twelve dot shapes: `dot`, `dot-small`, `tile`, `rounded`,
-  `diamond`, `star`, `fluid`, `fluid-line`, `stripe`, `stripe-row`,
-  `stripe-column`
-- Six of the seven finder shapes: `rounded`, `circle`, `rounded-circle`,
-  `circle-rounded`, `circle-star`, `circle-diamond`
 - Logo support — `Options.Logo` exists so the API is stable, but `New` rejects
   it with `ErrLogoUnsupported`
 - A measured contrast threshold, and a check for inverted polarity
+- Golden-image tests and benchmarks
 
 See [CHANGELOG.md](CHANGELOG.md) for the full history and
 [`docs/superpowers/`](docs/superpowers/) for the design and implementation plan.
