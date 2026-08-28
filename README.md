@@ -17,13 +17,33 @@ return q.WritePNGFile("qr.png")
 Only `Content` is required. Every other field has a working default, so the zero
 value produces a conventional black-on-white code at 380 pixels.
 
+## Command line
+
+```bash
+go install github.com/farizfadian/go-qrcode/cmd/qrgen@latest
+
+qrgen -out qr.png "https://example.com"
+qrgen -out card.svg -width 512 -dot-color '#1f2937' -corner-color '#dc2626' "hello"
+```
+
+The output format follows the `-out` extension unless `-format` overrides it.
+Run `qrgen -h` to see the shapes your build supports — the list is read from the
+library, so it is always accurate.
+
 ## Status
 
-Under construction. The design and the implementation plan live in
-[`docs/superpowers/`](docs/superpowers/).
+Under construction. Working today: PNG, JPEG and SVG output, `square` dots and
+`square` finder patterns, independent colours, transparency, all four
+error-correction levels, and the CLI. Still to come: the remaining eleven dot
+shapes, six finder shapes, and logo support.
+
+The design and the implementation plan live in
+[`docs/superpowers/`](docs/superpowers/); changes are tracked in
+[CHANGELOG.md](CHANGELOG.md).
 
 Runtime dependencies are limited to `github.com/piglig/go-qr` and
-`golang.org/x/image`, both pinned so the module keeps a Go 1.22 floor.
+`golang.org/x/image`, both pinned so the module keeps a Go 1.22 floor. CI
+asserts that footprint on every push, so it cannot grow by accident.
 
 ## Credits
 

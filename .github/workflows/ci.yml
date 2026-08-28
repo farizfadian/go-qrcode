@@ -1,17 +1,136 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# go-qrcode — CI
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Runs on every push and pull request:
+#   1. Tests on the declared minimum Go version and the latest two
+#   2. Tests on Linux, Windows and macOS — the renderer emits pixels, so
+#      identical output across platforms is a claim that needs proving
+#   3. go vet and a gofmt check
+#   4. Coverage report
+#   5. A cross-platform build of the qrgen CLI, so a broken release build is
+#      caught on the pull request rather than at tag time
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+
 name: CI
-on: [push, pull_request]
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master]
+
 jobs:
   test:
+    name: Test — Go ${{ matrix.go-version }} / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+
     strategy:
+      fail-fast: false
       matrix:
-        go: ['1.24', '1.25']
+        # 1.22 is the floor go.mod declares; a promise that is never tested is
+        # a promise that eventually breaks. 1.24 and 1.25 are the latest two.
+        go-version: ['1.22', '1.24', '1.25']
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go ${{ matrix.go-version }}
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Display Go version
+        run: go version
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Verify go.mod is tidy
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod go.sum
+
+      - name: Check formatting
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "These files are not gofmt-formatted:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: Build
+        run: go build ./...
+
+      # The race detector needs cgo, which every GitHub runner provides. It is
+      # the only place this project can run -race: a Windows workstation
+      # without a C toolchain cannot.
+      - name: Run tests with the race detector
+        run: go test -race -coverprofile=coverage.out -covermode=atomic ./...
+
+      - name: Upload coverage to Codecov
+        if: matrix.os == 'ubuntu-latest' && matrix.go-version == '1.25'
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage.out
+          fail_ci_if_error: false
+
+  dependencies:
+    name: Dependency footprint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
         with:
-          go-version: ${{ matrix.go }}
-      - run: go build ./...
-      - run: go vet ./...
-      - run: test -z "$(gofmt -l .)" || (gofmt -l . && exit 1)
-      - run: go test ./... -race
+          go-version: '1.25'
+
+      # A library people drop into other projects must not quietly grow its
+      # dependency set. gozxing is a test dependency and must never reach a
+      # consumer's build.
+      - name: Assert the library links only its two runtime dependencies
+        run: |
+          deps=$(go list -deps ./qr | grep -E '^(github|golang|rsc)\.' \
+                 | grep -v '^github.com/farizfadian/go-qrcode' | sort -u)
+          echo "$deps"
+          unexpected=$(echo "$deps" | grep -vE '^(github\.com/piglig/go-qr|golang\.org/x/image)' || true)
+          if [ -n "$unexpected" ]; then
+            echo "Unexpected runtime dependencies:"
+            echo "$unexpected"
+            exit 1
+          fi
+
+  build-cli:
+    name: Build CLI (all platforms)
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Cross-compile qrgen
+        run: bash ./.github/scripts/build-cli.sh dist
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: qrgen-binaries
+          path: dist/
+          retention-days: 7
