@@ -548,7 +548,29 @@ Do not push until tests are green; then push and open a PR into `main`.
 | Control render in every decode test | 2–3% gozxing baseline across three encoders |
 | Margin in modules, not pixels | reference ships a 0.65-module quiet zone |
 
-## 15. Deferred
+## 15. Consumability
+
+Fariz's requirement: this must be easy to drop into other Go projects. Treated
+here as testable criteria rather than good intentions, because "easy to use" is
+only real if something fails when it stops being true.
+
+| Criterion | How it is enforced |
+|---|---|
+| Import is one line and reads naturally | module `github.com/farizfadian/go-qrcode`, package `qr` under `qr/`, so consumers write `qr.New(...)` |
+| Simplest useful call is two lines | `q, err := qr.New(qr.Options{Content: "..."})` then `q.WritePNGFile("out.png")` — a test asserts this exact snippet compiles and decodes |
+| Zero-value `Options` is valid | only `Content` is required; a table test drives every field left at its zero value |
+| Dependency footprint stays tiny | a test asserts `go list -deps` adds only `piglig/go-qr` and `golang.org/x/image`; adding a third needs an ADR under `docs/adr/` |
+| No hidden setup | no `init()`, no package-level mutable state, no registration step; a `*QR` needs nothing but `New` |
+| Safe to share | `*QR` is immutable after `New`, so concurrent renders are safe — proven by a `-race` test |
+| Errors are actionable | sentinel errors comparable with `errors.Is`, wrapped with context; never a panic |
+| Discoverable from godoc alone | runnable `Example` functions for the default code, each dot type, each corner type, a logo, and SVG output |
+
+The runnable examples matter more than they look. They appear in godoc, they
+are compiled by `go test`, and they are the first thing someone evaluating the
+library reads. An example that stops compiling is a broken promise the test
+suite catches immediately.
+
+## 16. Deferred
 
 The `soldair/node-qrcode` surface — terminal and UTF-8 output, manual segment
 and mode control, explicit version and mask pinning — is not decided. It does
