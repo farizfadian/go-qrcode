@@ -1,0 +1,154 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# go-qrcode — Release
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Creates a GitHub Release when a version tag is pushed:
+#
+#     git tag v0.1.0
+#     git push origin v0.1.0
+#
+# It will:
+#   1. Run the full test suite with the race detector
+#   2. Assert that qr.Version matches the tag — see the note below
+#   3. Cross-compile qrgen for eleven platform/architecture pairs
+#   4. Publish the release with binaries, checksums and generated notes
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    name: Run tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Run tests with the race detector
+        run: go test -race ./...
+
+  verify-version:
+    name: Version matches tag
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      # The Go module proxy caches a tag permanently: once v0.1.0 is published
+      # it can never be changed, only superseded. So a mismatch between the tag
+      # and the qr.Version constant would be baked in forever. Catching it here
+      # costs seconds; catching it after publication costs a version number.
+      #
+      # qr.Version is a const on purpose. `-ldflags -X` can only write to a
+      # string var, and making it a var would expose a mutable global that any
+      # consumer could rewrite. The constant stays, and CI guards it.
+      - name: Compare qr.Version with the tag
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          version=$(go run ./cmd/qrgen -version | awk '{print $2}')
+          echo "tag=$tag  qr.Version=$version"
+          if [ "v$version" != "$tag" ]; then
+            echo
+            echo "Mismatch: the tag is $tag but qr.Version is \"$version\"."
+            echo "Update the Version constant in qr/doc.go to \"${tag#v}\","
+            echo "commit, delete the tag and re-tag."
+            exit 1
+          fi
+
+  release:
+    name: Create release
+    runs-on: ubuntu-latest
+    needs: [test, verify-version]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # release notes are generated from history
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Get version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+
+      - name: Cross-compile qrgen
+        run: bash ./.github/scripts/build-cli.sh dist
+
+      - name: Create checksums
+        run: |
+          cd dist
+          sha256sum * > checksums.txt
+          cat checksums.txt
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: go-qrcode ${{ steps.get_version.outputs.VERSION }}
+          generate_release_notes: true
+          body: |
+            Styled QR codes for Go — per-module dot shapes, independently
+            styled finder patterns, a decorated centre logo, and identical
+            geometry from both a raster and an SVG renderer.
+
+            ### Library
+
+            ```bash
+            go get github.com/farizfadian/go-qrcode@${{ steps.get_version.outputs.VERSION }}
+            ```
+
+            ```go
+            q, err := qr.New(qr.Options{Content: "https://example.com"})
+            err = q.WritePNGFile("qr.png")
+            ```
+
+            Only `Content` is required. Runtime dependencies are limited to
+            `github.com/piglig/go-qr` and `golang.org/x/image`, and the module
+            builds on Go 1.22 and later.
+
+            ### CLI
+
+            ```bash
+            go install github.com/farizfadian/go-qrcode/cmd/qrgen@${{ steps.get_version.outputs.VERSION }}
+            ```
+
+            Or download a binary below.
+
+            | Platform | Architectures |
+            |---|---|
+            | Windows | amd64, arm64, 386 |
+            | Linux | amd64, arm64, 386 |
+            | macOS | amd64 (Intel), arm64 (Apple Silicon) |
+            | FreeBSD | amd64, arm64, 386 |
+
+            Verify a download with `sha256sum -c checksums.txt`.
+
+            ---
+          files: |
+            dist/qrgen-*
+            dist/checksums.txt
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
