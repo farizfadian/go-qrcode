@@ -112,6 +112,25 @@ jobs:
             exit 1
           fi
 
+  readme-images:
+    name: README samples still scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      # A README that shows an unscannable QR code as its headline example is
+      # worse than one with no pictures. One of these samples was caught being
+      # unreadable before it shipped; this makes that failure impossible to
+      # repeat silently.
+      - name: Decode every image the README displays
+        run: go run ./testdata/checkimg docs/images/*.png
+
   build-cli:
     name: Build CLI (all platforms)
     runs-on: ubuntu-latest
