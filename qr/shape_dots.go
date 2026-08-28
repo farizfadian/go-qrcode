@@ -1,6 +1,10 @@
 package qr
 
-import "github.com/farizfadian/go-qrcode/internal/render"
+import (
+	"math"
+
+	"github.com/farizfadian/go-qrcode/internal/render"
+)
 
 // dotFunc builds the figure for one module. It may claim neighbouring modules
 // through ShapeContext.Consume, which is how the stripe shapes merge runs.
@@ -8,19 +12,43 @@ type dotFunc func(c ShapeContext, x, y int) render.Path
 
 var dotFuncs = map[DotType]dotFunc{
 	DotSquare:       dotSquare,
+	DotDot:          dotDot,
+	DotDotSmall:     dotDotSmall,
+	DotTile:         dotTile,
+	DotRounded:      dotRounded,
+	DotDiamond:      dotDiamond,
+	DotStar:         dotStar,
 	DotStripe:       dotStripe,
 	DotStripeRow:    dotStripeRow,
 	DotStripeColumn: dotStripeColumn,
 }
 
 // dotPath returns the path for one module, falling back to a plain square for
-// any shape not yet implemented.
+// any shape not yet implemented. New rejects unimplemented shapes before this
+// is reached, so the fallback is defence rather than behaviour.
 func dotPath(t DotType, c ShapeContext, x, y int) render.Path {
 	f, ok := dotFuncs[t]
 	if !ok {
 		f = dotSquare
 	}
 	return f(c, x, y)
+}
+
+// centredSquare returns the top-left corner and side of a square occupying
+// `fraction` of module (x, y) and centred in it.
+func centredSquare(c ShapeContext, x, y int, fraction float64) (ox, oy, side float64) {
+	px, py, s := c.Rect(x, y)
+	side = fraction * s
+	return px + (s-side)/2, py + (s-side)/2, side
+}
+
+// circleIn returns a circle filling `fraction` of the module. A rounded
+// rectangle whose radius is half its own side is exactly a circle, so the whole
+// catalogue needs only one primitive.
+func circleIn(c ShapeContext, x, y int, fraction float64) render.Path {
+	ox, oy, side := centredSquare(c, x, y, fraction)
+	r := side / 2
+	return render.RoundRect(ox, oy, side, side, r, r, r, r)
 }
 
 // dotSquare fills the module completely. It is the default shape and the one
@@ -30,6 +58,68 @@ func dotSquare(c ShapeContext, x, y int) render.Path {
 	px, py, s := c.Rect(x, y)
 	c.Consume(x, y)
 	return render.RoundRect(px, py, s, s, 0, 0, 0, 0)
+}
+
+// dotDot draws a circle of diameter 0.8s.
+func dotDot(c ShapeContext, x, y int) render.Path {
+	c.Consume(x, y)
+	return circleIn(c, x, y, 0.8)
+}
+
+// dotDotSmall is dotDot at 0.6s, for a sparser, lighter texture.
+func dotDotSmall(c ShapeContext, x, y int) render.Path {
+	c.Consume(x, y)
+	return circleIn(c, x, y, 0.6)
+}
+
+// dotTile fills the module less one pixel, so adjacent modules read as separate
+// tiles instead of merging into a solid block.
+func dotTile(c ShapeContext, x, y int) render.Path {
+	px, py, s := c.Rect(x, y)
+	c.Consume(x, y)
+	return render.RoundRect(px, py, s-1, s-1, 0, 0, 0, 0)
+}
+
+// dotRounded is a square at 0.75s with a radius of a quarter of its own side.
+func dotRounded(c ShapeContext, x, y int) render.Path {
+	c.Consume(x, y)
+	ox, oy, side := centredSquare(c, x, y, 0.75)
+	r := side / 4
+	return render.RoundRect(ox, oy, side, side, r, r, r, r)
+}
+
+// dotDiamond is a square rotated 45 degrees. Its side is scaled by
+// 1/sin(45 degrees) so the rotated figure spans exactly one module corner to
+// corner rather than overflowing it.
+func dotDiamond(c ShapeContext, x, y int) render.Path {
+	px, py, s := c.Rect(x, y)
+	c.Consume(x, y)
+	ox, oy, side := centredSquare(c, x, y, 0.5/math.Sin(math.Pi/4))
+	return render.RoundRect(ox, oy, side, side, 0, 0, 0, 0).
+		Rotate(math.Pi/4, px+s/2, py+s/2)
+}
+
+// dotStar runs four quadratic curves between the module's corners with their
+// control point at the centre, pulling each edge inward, then rotates the
+// figure 45 degrees so the points face the axes.
+//
+// Unlike dotDiamond this is not scaled down, so the points reach s/sqrt(2) from
+// the centre and overlap slightly into neighbouring modules. That overlap is
+// what the reference library draws and what gives the shape its look.
+func dotStar(c ShapeContext, x, y int) render.Path {
+	px, py, s := c.Rect(x, y)
+	c.Consume(x, y)
+	cx, cy := px+s/2, py+s/2
+	h := s / 2
+
+	var b render.Builder
+	b.MoveTo(cx-h, cy-h)
+	b.QuadTo(cx, cy, cx+h, cy-h)
+	b.QuadTo(cx, cy, cx+h, cy+h)
+	b.QuadTo(cx, cy, cx-h, cy+h)
+	b.QuadTo(cx, cy, cx-h, cy-h)
+	b.Close()
+	return b.Path().Rotate(math.Pi/4, cx, cy)
 }
 
 // run is a rectangle of modules a stripe shape may merge into one figure,

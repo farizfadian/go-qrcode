@@ -103,7 +103,7 @@ func ExampleDotTypeNames() {
 	fmt.Println(qr.DotTypeNames())
 	fmt.Println(qr.CornerTypeNames())
 	// Output:
-	// [square stripe stripe-column stripe-row]
+	// [diamond dot dot-small rounded square star stripe stripe-column stripe-row tile]
 	// [square]
 }
 
