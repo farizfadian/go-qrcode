@@ -363,11 +363,41 @@ at all, so it would have quietly handed back a code with no logo on it. Setting
 both means every output format works and nothing fails late.
 
 The vector path is byte-for-byte: gradients, rounded corners, strokes and text
-all survive exactly as authored. That matters more than it sounds. The
-best-known pure-Go SVG rasteriser was measured silently dropping `rx` on
-`<rect>`, turning rounded corners square with no error — which is why this
-library nests rather than rasterises, and why converting your SVG in a design
-tool is the right move for the raster formats.
+all survive exactly as authored.
+
+**If you only have an SVG and you want PNG output, convert it once.** Any of
+these produce a correct raster; pick whichever you already have:
+
+```bash
+# Inkscape (free, all platforms)
+inkscape logo.svg --export-filename=logo.png --export-width=512
+
+# ImageMagick, with a high render density so curves stay smooth
+magick -density 384 -background none logo.svg -resize 512x512 logo.png
+
+# librsvg
+rsvg-convert -w 512 -h 512 logo.svg -o logo.png
+```
+
+Or export a 512 px PNG from Figma, Illustrator or Sketch — same result, and
+you get to see it before using it.
+
+Then use both, so every output format is covered:
+
+```bash
+qrgen -out qr.png -logo logo.png "https://example.com"                 # raster
+qrgen -out qr.svg -logo logo.png -logo-svg logo.svg "https://example.com"
+```
+
+**Why not convert it for you?** Because doing it badly is worse than not doing
+it. The best-known pure-Go SVG rasteriser was tested here on a logo with a
+gradient, a transform, a stroked circle and a rounded rectangle. It rendered
+nearly all of it and **silently dropped `rx` on `<rect>`** — rounded corners
+came out square, with no error and no warning. A logo that is quietly wrong,
+with nothing failing and nothing pointing at the cause, is the worst outcome
+available. It also costs four untagged dependencies including
+`golang.org/x/net`. Your design tool renders SVG correctly; this library will
+not pretend to.
 
 ### 8. What you can put in a QR code
 
