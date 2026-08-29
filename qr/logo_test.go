@@ -2,10 +2,12 @@ package qr
 
 import (
 	"bytes"
+	"encoding/xml"
 	"errors"
 	"image"
 	"image/color"
 	"image/png"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -290,4 +292,113 @@ func sizeName(f float64) string {
 		return "auto"
 	}
 	return "size-" + strconv.FormatFloat(f, 'f', -1, 64)
+}
+
+const testLogoSVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">` +
+	`<rect x="8" y="8" width="84" height="84" rx="16" fill="#0f766e"/>` +
+	`<path d="M30 28 L72 28 L72 40 L44 40 L44 52 L66 52 L66 64 L44 64 L44 76 L30 76 Z" fill="#ffffff"/>` +
+	`</svg>`
+
+// SVGMarkup is an addition to the raster logo, not a replacement. Requiring
+// both is what keeps every output format working: New cannot know which one
+// the caller will ask for, and Image cannot report an error at all.
+func TestLogoSVGMarkupStillNeedsARasterSource(t *testing.T) {
+	_, err := New(Options{
+		Content: testURL,
+		Logo:    &LogoOptions{SVGMarkup: testLogoSVG},
+	})
+	if !errors.Is(err, ErrLogoSource) {
+		t.Fatalf("error = %v, want ErrLogoSource", err)
+	}
+}
+
+// A malformed vector logo must fail where every other configuration error
+// does, rather than corrupting the SVG document later.
+func TestLogoRejectsMalformedSVGMarkupAtNew(t *testing.T) {
+	for _, tc := range []struct{ name, markup string }{
+		{"not svg", "<html><body/></html>"},
+		{"truncated", `<svg xmlns="http://www.w3.org/2000/svg"><g><rect/>`},
+		{"plain text", "just a logo, honest"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := New(Options{
+				Content: testURL,
+				Logo:    &LogoOptions{Image: testLogo(64, 64), SVGMarkup: tc.markup},
+			})
+			if err == nil {
+				t.Fatal("New accepted markup that is not a usable SVG document")
+			}
+			if !strings.Contains(err.Error(), "SVGMarkup") {
+				t.Errorf("the error does not say which field is wrong: %v", err)
+			}
+		})
+	}
+}
+
+// The two renderers take different sources on purpose: SVG output embeds the
+// vector version, raster output uses the bitmap. Both must work.
+func TestLogoSVGMarkupIsEmbeddedInSVGOnly(t *testing.T) {
+	q, err := New(Options{
+		Content: testURL,
+		Width:   800,
+		Logo: &LogoOptions{
+			Image:     testLogo(128, 128),
+			SVGMarkup: testLogoSVG,
+			Size:      0.2,
+		},
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	markup, err := q.SVGString()
+	if err != nil {
+		t.Fatalf("SVGString: %v", err)
+	}
+	// The vector logo, verbatim, including the rounded corner that a Go SVG
+	// rasteriser was measured silently dropping.
+	if !strings.Contains(markup, `rx="16"`) {
+		t.Error("the vector logo's rounded corner did not survive embedding")
+	}
+	if !strings.Contains(markup, `fill="#0f766e"`) {
+		t.Error("the vector logo was not embedded")
+	}
+	if strings.Contains(markup, "data:image/png") {
+		t.Error("a bitmap was embedded even though vector markup was given")
+	}
+
+	// Raster output is unaffected and still decodes.
+	requireDecodableBaseline(t, testURL, ECCHigh)
+	assertDecodes(t, q.Image(), testURL)
+}
+
+// Whatever is embedded, the document as a whole must stay parseable.
+func TestSVGWithVectorLogoIsWellFormed(t *testing.T) {
+	q, err := New(Options{
+		Content: testURL,
+		Width:   800,
+		Logo: &LogoOptions{
+			Image:     testLogo(128, 128),
+			SVGMarkup: testLogoSVG,
+			Radius:    12,
+		},
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	markup, err := q.SVGString()
+	if err != nil {
+		t.Fatalf("SVGString: %v", err)
+	}
+
+	dec := xml.NewDecoder(strings.NewReader(markup))
+	for {
+		_, err := dec.Token()
+		if errors.Is(err, io.EOF) {
+			return
+		}
+		if err != nil {
+			t.Fatalf("the SVG document is not well-formed: %v", err)
+		}
+	}
 }

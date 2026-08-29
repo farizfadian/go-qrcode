@@ -35,16 +35,32 @@ func SVG(sc Scene) (string, error) {
 			}
 			fmt.Fprintf(&b, `<path d="%s" fill="%s"/>`, pathD(v.Path), hexOf(v.Fill))
 		case ImageItem:
-			data, err := dataURI(v)
-			if err != nil {
-				return "", err
-			}
 			attr := ""
 			if v.Clip != nil {
 				clipID++
 				id := "clip" + strconv.Itoa(clipID)
 				fmt.Fprintf(&b, `<clipPath id="%s"><path d="%s"/></clipPath>`, id, pathD(*v.Clip))
 				attr = fmt.Sprintf(` clip-path="url(#%s)"`, id)
+			}
+
+			// A vector source is nested rather than rasterised, so it stays
+			// sharp and keeps whatever the author drew.
+			if v.SVGMarkup != "" {
+				nested, err := nestSVG(v.SVGMarkup, v.X, v.Y, v.W, v.H)
+				if err != nil {
+					return "", err
+				}
+				if attr != "" {
+					fmt.Fprintf(&b, `<g%s>%s</g>`, attr, nested)
+				} else {
+					b.WriteString(nested)
+				}
+				continue
+			}
+
+			data, err := dataURI(v)
+			if err != nil {
+				return "", err
 			}
 			fmt.Fprintf(&b, `<image x="%s" y="%s" width="%s" height="%s" href="%s"%s/>`,
 				num(v.X), num(v.Y), num(v.W), num(v.H), data, attr)

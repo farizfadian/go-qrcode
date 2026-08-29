@@ -41,6 +41,7 @@ type logoPlan struct {
 	imageRadius  float64
 	borderColor  color.RGBA
 	bgColor      color.RGBA
+	svgMarkup    string
 
 	maxHidden int
 }
@@ -53,6 +54,13 @@ func planLogo(lo LogoOptions, background string, l layout, ecc ECCLevel, m *Matr
 	img, err := loadLogoImage(lo)
 	if err != nil {
 		return nil, err
+	}
+	// Validated here, not at render time, so a malformed vector logo fails
+	// where every other configuration error does.
+	if lo.SVGMarkup != "" {
+		if err := render.ValidateSVG(lo.SVGMarkup); err != nil {
+			return nil, fmt.Errorf("qr: logo SVGMarkup: %w", err)
+		}
 	}
 	b := img.Bounds()
 	if b.Dx() <= 0 || b.Dy() <= 0 {
@@ -127,6 +135,7 @@ func planLogo(lo LogoOptions, background string, l layout, ecc ECCLevel, m *Matr
 		imageRadius:  lo.Radius,
 		borderColor:  borderColor,
 		bgColor:      bgColor,
+		svgMarkup:    lo.SVGMarkup,
 		maxHidden:    maxHidden,
 	}, nil
 }
@@ -191,7 +200,11 @@ func (p *logoPlan) items() []render.Item {
 		render.PathItem{Path: inner, Fill: p.bgColor},
 	}
 
-	item := render.ImageItem{Img: p.img, X: p.imgX, Y: p.imgY, W: p.imgW, H: p.imgH}
+	item := render.ImageItem{
+		Img:       p.img,
+		SVGMarkup: p.svgMarkup,
+		X:         p.imgX, Y: p.imgY, W: p.imgW, H: p.imgH,
+	}
 	if p.imageRadius > 0 {
 		clip := inner
 		item.Clip = &clip

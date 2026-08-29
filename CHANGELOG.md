@@ -94,6 +94,11 @@ The declared floor stays at 1.22; macOS users need Go 1.23 or later.
   version, module count, ECC level, mask and per-segment encoding modes. It uses
   the decoder already inside `piglig/go-qr`, so it costs no new dependency.
   `qrgen -scan` and `-scan-details` expose it on the command line.
+- `LogoOptions.SVGMarkup`, an optional vector version of the logo embedded
+  directly into SVG output as a nested `<svg>`, so gradients, rounded corners,
+  strokes and text survive exactly as authored. It sits alongside the raster
+  logo rather than replacing it, which keeps every output format working and
+  every configuration error at `New`.
 - Colour-scheme validation. `ErrLowContrast` fires below a WCAG contrast ratio
   of 3.5, and `ErrInvertedPolarity` fires whenever the foreground is lighter
   than the background. Both thresholds were measured against a real decoder:

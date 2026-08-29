@@ -75,6 +75,20 @@ type LogoOptions struct {
 	Path   string
 	Reader io.Reader
 
+	// SVGMarkup is an optional vector version of the same logo, used only for
+	// SVG output, where it is embedded as a nested <svg> and rendered by
+	// whatever displays the page. Gradients, curves, strokes and text survive
+	// exactly as authored, at any zoom.
+	//
+	// It does not replace the raster logo above; it sits alongside it. Go has no
+	// SVG rasteriser, so PNG, JPEG and WebP still need Image, Path or Reader.
+	// Requiring both is deliberate: the alternative was an option that made
+	// New succeed and PNG fail later, and Image cannot report an error at all,
+	// so it would have quietly produced a code with no logo on it.
+	//
+	// Export a PNG from the same source once, and set both.
+	SVGMarkup string
+
 	// Size is the logo block's width as a fraction of Options.Width, border
 	// included. Zero selects automatic sizing from the ECC budget.
 	Size float64

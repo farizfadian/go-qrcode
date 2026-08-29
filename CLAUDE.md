@@ -297,7 +297,17 @@ dot rendering — `matrix.go` classification drives this. Alignment patterns
 
 ### Logo
 border width · border radius · logo corner radius · background colour ·
-auto-sizing · safe-zone clearing of modules underneath
+auto-sizing · safe-zone clearing of modules underneath · optional vector
+version embedded into SVG output
+
+> **Do not add an SVG rasteriser to support vector logos in PNG.** It was
+> evaluated: `oksvg` costs four untagged dependencies including
+> `golang.org/x/net`, and was measured silently dropping `rx` on `<rect>`,
+> turning rounded corners square with no error at all. A logo that comes out
+> subtly wrong with nothing failing is worse than one that is not supported.
+> `LogoOptions.SVGMarkup` nests the markup into SVG output instead, where the
+> displaying engine renders it correctly, and the README points users at their
+> design tool for the raster formats.
 
 ### Renderers
 raster (PNG, JPEG) · SVG string · transparent background (`#00000000`)

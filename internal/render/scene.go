@@ -20,8 +20,15 @@ func (PathItem) isItem() {}
 // ImageItem draws an image scaled into the rectangle at (X, Y) with size
 // (W, H). When Clip is non-nil the image is masked by that path, which is how a
 // logo gets rounded corners without either renderer knowing what a logo is.
+//
+// SVGMarkup is an optional vector version of the same picture. The SVG renderer
+// embeds it instead of the bitmap, so it stays sharp at any zoom and keeps
+// gradients, curves and text exactly as authored. The rasteriser ignores it and
+// uses Img, so both renderers always have something to draw and neither can
+// fail for want of the other.
 type ImageItem struct {
 	Img        image.Image
+	SVGMarkup  string
 	X, Y, W, H float64
 	Clip       *Path
 }
