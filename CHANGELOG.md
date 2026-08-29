@@ -45,6 +45,8 @@ Nothing has been tagged yet. Everything below ships in the first release.
 - `qrgen`, rendering to PNG, JPEG or SVG. The format follows the `-out`
   extension unless `-format` overrides it, and the flag help lists exactly the
   shapes the build can draw.
+- `-logo` and its companions on the CLI, reporting how much of the
+  error-correction budget the logo spent.
 
 #### Project
 
@@ -94,7 +96,6 @@ The declared floor stays at 1.22; macOS users need Go 1.23 or later.
 ### Not yet implemented
 
 - Golden-image tests and benchmarks.
-- A `-logo` flag on the CLI.
 
 ---
 

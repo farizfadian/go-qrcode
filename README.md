@@ -395,6 +395,13 @@ qrgen -format svg -out anything.txt "https://example.com"
 # Pin the error-correction level
 qrgen -out qr.png -ecc H "https://example.com"
 
+# Add a logo. Leave -logo-size off and it fits the largest the
+# error correction allows, then tells you what it spent.
+qrgen -out qr.png -width 900 -logo logo.png "https://example.com"
+# wrote qr.png (37 modules, ECC H, logo hides 121 of 123 allowed)
+
+qrgen -out card.png -width 900       -logo logo.png -logo-size 0.18 -logo-radius 12       -logo-border 12 -logo-border-radius 18       "https://example.com"
+
 # See every flag, and the shapes this build supports
 qrgen -h
 ```

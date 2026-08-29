@@ -43,6 +43,14 @@ func run(args []string, stdout, stderr io.Writer) int {
 		cornerColor = fs.String("corner-color", "", "finder colour; defaults to -fg")
 		quality     = fs.Int("quality", 92, "JPEG quality, 1 to 100")
 		showVersion = fs.Bool("version", false, "print the version and exit")
+
+		logoPath         = fs.String("logo", "", "path to a PNG or JPEG logo to place at the centre")
+		logoSize         = fs.Float64("logo-size", 0, "logo width as a fraction of -width; 0 fits the largest the error correction allows")
+		logoRadius       = fs.Float64("logo-radius", 0, "round the logo image's own corners, in pixels")
+		logoBorder       = fs.Float64("logo-border", 0, "frame around the logo, in pixels (default 10)")
+		logoBorderRadius = fs.Float64("logo-border-radius", 0, "round the frame, in pixels (default 8)")
+		logoBorderColor  = fs.String("logo-border-color", "", "frame colour; defaults to -bg")
+		logoBgColor      = fs.String("logo-bg", "", "colour behind the logo image (default \"#ffffff\")")
 	)
 
 	fs.Usage = func() {
@@ -76,6 +84,18 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 
+	if *logoPath != "" {
+		opts.Logo = &qr.LogoOptions{
+			Path:         *logoPath,
+			Size:         *logoSize,
+			Radius:       *logoRadius,
+			BorderWidth:  *logoBorder,
+			BorderRadius: *logoBorderRadius,
+			BorderColor:  *logoBorderColor,
+			BgColor:      *logoBgColor,
+		}
+	}
+
 	code, err := qr.New(opts)
 	if err != nil {
 		fmt.Fprintf(stderr, "qrgen: %v\n", err)
@@ -87,7 +107,12 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 
-	fmt.Fprintf(stdout, "wrote %s (%d modules, ECC %v)\n", *out, code.Modules(), code.ECC())
+	if code.LogoBudget() > 0 {
+		fmt.Fprintf(stdout, "wrote %s (%d modules, ECC %v, logo hides %d of %d allowed)\n",
+			*out, code.Modules(), code.ECC(), code.HiddenModules(), code.LogoBudget())
+	} else {
+		fmt.Fprintf(stdout, "wrote %s (%d modules, ECC %v)\n", *out, code.Modules(), code.ECC())
+	}
 	return 0
 }
 

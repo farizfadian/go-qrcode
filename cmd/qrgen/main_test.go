@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"image"
+	"image/color"
 	"image/png"
 	"os"
 	"path/filepath"
@@ -157,5 +159,97 @@ func TestHelpListsTheShapesThisBuildSupports(t *testing.T) {
 	}
 	if !strings.Contains(errOut, "square") {
 		t.Errorf("help does not list the dot shapes: %s", errOut)
+	}
+}
+
+// writeTestLogo puts a small PNG on disk so the -logo flag has something real
+// to load.
+func writeTestLogo(t *testing.T) string {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, 128, 128))
+	for y := 0; y < 128; y++ {
+		for x := 0; x < 128; x++ {
+			c := color.RGBA{0x0f, 0x76, 0x6e, 0xff}
+			if (x/16+y/16)%2 == 0 {
+				c = color.RGBA{0xff, 0xff, 0xff, 0xff}
+			}
+			img.Set(x, y, c)
+		}
+	}
+	path := filepath.Join(t.TempDir(), "logo.png")
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	if err := png.Encode(f, img); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func TestLogoFlagProducesADecodableCode(t *testing.T) {
+	logo := writeTestLogo(t)
+	out := filepath.Join(t.TempDir(), "qr.png")
+
+	code, stdout, errOut := runArgs(t,
+		"-logo", logo, "-width", "900", "-out", out, sample)
+	if code != 0 {
+		t.Fatalf("exit %d, stderr: %s", code, errOut)
+	}
+	if !strings.Contains(stdout, "logo hides") {
+		t.Errorf("stdout does not report the logo budget: %s", stdout)
+	}
+	if got := decodeFile(t, out); got != sample {
+		t.Errorf("decoded %q, want %q", got, sample)
+	}
+}
+
+func TestLogoFlagsAreAllWiredUp(t *testing.T) {
+	logo := writeTestLogo(t)
+	out := filepath.Join(t.TempDir(), "qr.png")
+
+	code, _, errOut := runArgs(t,
+		"-logo", logo,
+		"-logo-size", "0.18",
+		"-logo-radius", "10",
+		"-logo-border", "12",
+		"-logo-border-radius", "16",
+		"-logo-border-color", "#ffffff",
+		"-logo-bg", "#ffffff",
+		"-width", "900", "-out", out, sample)
+	if code != 0 {
+		t.Fatalf("exit %d, stderr: %s", code, errOut)
+	}
+	if got := decodeFile(t, out); got != sample {
+		t.Errorf("decoded %q, want %q", got, sample)
+	}
+}
+
+// An oversized logo must be refused with the library's explanation, not
+// silently shrunk or written out unscannable.
+func TestOversizedLogoFlagIsRejected(t *testing.T) {
+	logo := writeTestLogo(t)
+	out := filepath.Join(t.TempDir(), "qr.png")
+
+	code, _, errOut := runArgs(t,
+		"-logo", logo, "-logo-size", "0.8", "-width", "900", "-out", out, sample)
+	if code == 0 {
+		t.Fatal("exit 0; an oversized logo must fail")
+	}
+	if !strings.Contains(errOut, "error correction") {
+		t.Errorf("stderr does not explain the budget: %s", errOut)
+	}
+}
+
+// The contrast rules must reach the command line too.
+func TestInvertedColoursAreRejectedByTheCLI(t *testing.T) {
+	out := filepath.Join(t.TempDir(), "qr.png")
+	code, _, errOut := runArgs(t, "-fg", "#ffffff", "-bg", "#000000", "-out", out, sample)
+	if code == 0 {
+		t.Fatal("exit 0; an inverted scheme must fail")
+	}
+	if !strings.Contains(errOut, "darker") {
+		t.Errorf("stderr does not explain the polarity rule: %s", errOut)
 	}
 }
