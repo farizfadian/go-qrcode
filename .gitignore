@@ -1,0 +1,11 @@
+# Local build output and generated samples. Binaries are published by the
+# release workflow, not committed.
+/dist/
+
+# Go fuzzing writes failing inputs here; commit them deliberately if one
+# ever reproduces a real bug.
+/qr/testdata/fuzz/
+
+# Editor and OS noise
+.DS_Store
+*.swp
