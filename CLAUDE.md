@@ -374,6 +374,14 @@ Required test matrix:
   pixels**, not file bytes — a change in Go's PNG encoder would otherwise break
   every one without anything in this library having changed.
 
+  They also compare **with a tolerance**, and that is not laziness. Exact pixel
+  equality is not portable: `x/image/vector` ships an amd64 assembly rasteriser
+  and a pure-Go fallback, so an anti-aliased curve rounds one level differently
+  on arm64. Measured at 8 of 67,600 pixels on the circular finder shapes;
+  straight edges are unaffected. A real geometry change moves whole modules —
+  thousands of pixels differing by hundreds of levels — so the tolerance sits
+  in a wide gap between the two regimes. Both ends of it are pinned by tests.
+
 Also required:
 
 - Table-driven tests throughout

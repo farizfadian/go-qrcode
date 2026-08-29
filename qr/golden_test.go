@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"image"
+	"image/draw"
 	"image/png"
 	"os"
 	"path/filepath"
@@ -97,34 +98,85 @@ func TestGolden(t *testing.T) {
 	}
 }
 
-// comparePixels returns a description of the first difference, or "" when the
-// images match.
+// Golden comparison tolerances.
+//
+// Exact pixel equality is not portable. golang.org/x/image/vector ships an
+// amd64 assembly rasteriser and a pure-Go fallback, so a curve's anti-aliased
+// edge rounds a shade differently on arm64 than on amd64 — measured at 8 of
+// 67,600 pixels, each off by one level, on the circular finder shapes. Straight
+// edges are unaffected.
+//
+// The two regimes are far apart, so a tolerance sits comfortably between them:
+// a real geometry change moves whole modules, which means thousands of pixels
+// differing by hundreds of levels, not a dozen differing by one.
+const (
+	channelTolerance = 4     // per-channel levels (0-255) attributable to rounding
+	maxDifferingFrac = 0.005 // at most 0.5% of pixels may differ at all
+)
+
+// comparePixels returns a description of how two images differ, or "" when they
+// match within the tolerances above.
 func comparePixels(got, want image.Image) string {
 	gb, wb := got.Bounds(), want.Bounds()
 	if gb != wb {
 		return fmt.Sprintf("bounds %v, want %v", gb, wb)
 	}
-	differing := 0
+
+	differing, worst := 0, 0
 	first := ""
 	for y := gb.Min.Y; y < gb.Max.Y; y++ {
 		for x := gb.Min.X; x < gb.Max.X; x++ {
 			gr, gg, gbl, ga := got.At(x, y).RGBA()
 			wr, wg, wbl, wa := want.At(x, y).RGBA()
-			if gr != wr || gg != wg || gbl != wbl || ga != wa {
-				differing++
-				if first == "" {
-					first = fmt.Sprintf("first at (%d,%d): got %v, want %v",
-						x, y, got.At(x, y), want.At(x, y))
-				}
+			d := maxOf(
+				diff8(gr, wr), diff8(gg, wg),
+				diff8(gbl, wbl), diff8(ga, wa),
+			)
+			if d == 0 {
+				continue
+			}
+			differing++
+			if d > worst {
+				worst = d
+			}
+			if first == "" {
+				first = fmt.Sprintf("first at (%d,%d): got %v, want %v",
+					x, y, got.At(x, y), want.At(x, y))
 			}
 		}
 	}
 	if differing == 0 {
 		return ""
 	}
+
 	total := gb.Dx() * gb.Dy()
-	return fmt.Sprintf("%d of %d pixels differ (%.2f%%); %s",
-		differing, total, 100*float64(differing)/float64(total), first)
+	frac := float64(differing) / float64(total)
+	if worst <= channelTolerance && frac <= maxDifferingFrac {
+		return "" // rasteriser rounding, not a change in geometry
+	}
+	return fmt.Sprintf(
+		"%d of %d pixels differ (%.3f%%), worst channel gap %d levels; %s",
+		differing, total, 100*frac, worst, first)
+}
+
+// diff8 returns the absolute difference between two 16-bit channel values,
+// scaled to the 0-255 range the tolerance is expressed in.
+func diff8(a, b uint32) int {
+	d := int(a) - int(b)
+	if d < 0 {
+		d = -d
+	}
+	return d >> 8
+}
+
+func maxOf(vs ...int) int {
+	m := 0
+	for _, v := range vs {
+		if v > m {
+			m = v
+		}
+	}
+	return m
 }
 
 // Every golden image must also still scan. A regression that changed the
@@ -143,4 +195,50 @@ func TestGoldenImagesStillDecode(t *testing.T) {
 			assertDecodes(t, q.Image(), tc.opts.Content)
 		})
 	}
+}
+
+// A tolerance that accepts everything is worse than no test, so both ends of it
+// are pinned: a real change must still fail, and rasteriser rounding must still
+// pass.
+func TestGoldenToleranceCatchesRealChangesAndIgnoresRounding(t *testing.T) {
+	base, err := New(Options{Content: "HELLO", Width: 260})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("a different dot shape is caught", func(t *testing.T) {
+		other, err := New(Options{Content: "HELLO", Width: 260, Dots: DotOptions{Type: DotDot}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if diff := comparePixels(base.Image(), other.Image()); diff == "" {
+			t.Error("the tolerance accepted a different dot shape")
+		}
+	})
+
+	t.Run("a one-pixel shift is caught", func(t *testing.T) {
+		shifted, err := New(Options{Content: "HELLO", Width: 261})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if diff := comparePixels(base.Image(), shifted.Image()); diff == "" {
+			t.Error("the tolerance accepted a different image size or offset")
+		}
+	})
+
+	t.Run("rasteriser rounding is ignored", func(t *testing.T) {
+		// Nudge a handful of pixels by one level, which is the shape of the
+		// difference measured between the amd64 and pure-Go rasterisers.
+		nudged := image.NewRGBA(base.Image().Bounds())
+		draw.Draw(nudged, nudged.Bounds(), base.Image(), image.Point{}, draw.Src)
+		for i := 0; i < 8; i++ {
+			x, y := 40+i, 40
+			c := nudged.RGBAAt(x, y)
+			c.R, c.G, c.B = c.R-1, c.G-1, c.B-1
+			nudged.SetRGBA(x, y, c)
+		}
+		if diff := comparePixels(nudged, base.Image()); diff != "" {
+			t.Errorf("the tolerance rejected rounding-scale noise: %s", diff)
+		}
+	})
 }
