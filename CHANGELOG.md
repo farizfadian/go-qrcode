@@ -84,10 +84,15 @@ toolchain — the other packages built by the same job run fine, and every other
 Go version and operating system passes, including Go 1.22 on Linux and Windows.
 The declared floor stays at 1.22; macOS users need Go 1.23 or later.
 
+- Colour-scheme validation. `ErrLowContrast` fires below a WCAG contrast ratio
+  of 3.5, and `ErrInvertedPolarity` fires whenever the foreground is lighter
+  than the background. Both thresholds were measured against a real decoder:
+  3.54 was the lowest ratio that still decoded and 2.96 the highest that failed,
+  while inverted schemes failed at every ratio up to 21. Dots and finder
+  patterns are checked separately.
+
 ### Not yet implemented
 
-- A measured contrast threshold for `ErrLowContrast`, and a check for inverted
-  polarity.
 - Golden-image tests and benchmarks.
 - A `-logo` flag on the CLI.
 

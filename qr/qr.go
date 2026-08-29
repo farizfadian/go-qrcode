@@ -61,6 +61,16 @@ func New(opts Options) (*QR, error) {
 		return nil, fmt.Errorf("%w: corners: %v", ErrBadColor, err)
 	}
 
+	// Refuse a colour scheme that cannot be read. Both checks are measured:
+	// decoding fails below a contrast ratio of about 3, and an inverted code
+	// fails at any contrast at all.
+	if err := checkContrast(bg, map[string]color.RGBA{
+		"dots":    dotCol,
+		"corners": cornerCol,
+	}); err != nil {
+		return nil, err
+	}
+
 	ecc := o.resolveECC()
 	mods, err := defaultEncoder().Encode(o.Content, ecc)
 	if err != nil {

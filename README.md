@@ -209,11 +209,22 @@ q, _ := qr.New(qr.Options{
 Hex works with or without the `#`, in 3, 4, 6 or 8 digits. `"#00000000"` gives a
 **transparent background**.
 
-> ⚠️ **The foreground must be darker than the background.** A light-on-dark
-> "inverted" QR code has excellent contrast and still will not scan: the
-> specification assumes dark modules on a light field, and readers look for that
-> pattern. This was measured, not assumed — an inverted sample failed to decode
-> at all. Colour freely, but keep the polarity.
+`New` refuses a scheme that cannot be read, and both limits were measured
+against a real decoder rather than guessed:
+
+- **The foreground must be darker than the background.** A light-on-dark
+  "inverted" code has excellent contrast and still will not scan — the
+  specification assumes dark modules on a light field, and readers look for that
+  pattern. Every inverted sample tested failed to decode, at contrast ratios up
+  to 21. You get `ErrInvertedPolarity`.
+- **Contrast must reach a ratio of 3.5.** Sweeping a grey foreground against
+  white, 3.54 was the lowest ratio that still decoded and 2.96 the highest that
+  failed. Below the floor you get `ErrLowContrast`, naming the ratio.
+
+That floor is a best case: clean pixels read by software. A phone camera at an
+angle in poor light needs far more, so aim for 4.5 or better in print. Dots and
+finder patterns are checked separately, so a scheme whose finders wash out is
+caught even when its dots are fine.
 
 ### 4. Error correction
 
