@@ -45,8 +45,8 @@ Nothing has been tagged yet. Everything below ships in the first release.
 - `qrgen`, rendering to PNG, JPEG or SVG. The format follows the `-out`
   extension unless `-format` overrides it, and the flag help lists exactly the
   shapes the build can draw.
-- `-logo` and its companions on the CLI, reporting how much of the
-  error-correction budget the logo spent.
+- `-logo` and its companions on the CLI, including `-logo-svg` for the vector
+  version, reporting how much of the error-correction budget the logo spent.
 
 #### Project
 

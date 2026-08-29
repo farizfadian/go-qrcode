@@ -471,13 +471,6 @@ qrgen -format svg -out anything.txt "https://example.com"
 # Pin the error-correction level
 qrgen -out qr.png -ecc H "https://example.com"
 
-# Add a logo. Leave -logo-size off and it fits the largest the
-# error correction allows, then tells you what it spent.
-qrgen -out qr.png -width 900 -logo logo.png "https://example.com"
-# wrote qr.png (37 modules, ECC H, logo hides 121 of 123 allowed)
-
-qrgen -out card.png -width 900       -logo logo.png -logo-size 0.18 -logo-radius 12       -logo-border 12 -logo-border-radius 18       "https://example.com"
-
 # WebP output, 19-48% smaller than the PNG
 qrgen -out qr.webp -width 600 "https://example.com"
 
@@ -501,6 +494,74 @@ qrgen -h
 
 The shape list in `qrgen -h` is read from the library itself, so it always
 matches what the binary can actually draw.
+
+### Adding a logo from the command line
+
+The short version — point `-logo` at a PNG or JPEG and you are done:
+
+```bash
+qrgen -out qr.png -width 900 -logo logo.png "https://example.com"
+# wrote qr.png (29 modules, ECC H, logo hides 49 of 75 allowed)
+```
+
+That line tells you everything worth knowing. `ECC H` was chosen for you
+because a logo covers data and the highest error correction pays for it. **49 of
+75** is how much of the recovery budget the logo spent — leave `-logo-size` off
+and the largest logo that fits is chosen automatically.
+
+Styled, with a rounded logo and a frame:
+
+```bash
+qrgen -out card.png -width 900 \
+      -dots fluid -corners circle \
+      -dot-color '#1f2937' -corner-color '#dc2626' \
+      -logo logo.png \
+      -logo-radius 14 \
+      -logo-border 12 \
+      -logo-border-radius 18 \
+      "https://example.com"
+```
+
+By default the frame takes the background colour, so it reads as a clean hole
+punched in the code. Give it a colour of its own to make it a visible ring:
+
+```bash
+qrgen -out framed.png -width 900 -logo logo.png \
+      -logo-border 16 -logo-border-color '#1f2937' -logo-bg '#ffffff' \
+      "https://example.com"
+```
+
+A vector version for SVG output, embedded verbatim so it stays sharp at any
+zoom. It sits alongside the raster logo rather than replacing it, because PNG,
+JPEG and WebP cannot use vector art:
+
+```bash
+qrgen -out qr.svg -width 900 -logo logo.png -logo-svg logo.svg "https://example.com"
+```
+
+**One thing worth knowing about `-logo-size`.** It is a fraction of `-width`,
+but whether a given fraction fits depends on how much content you encode,
+because the recovery budget grows with the symbol. Measured with the same logo
+at the same width:
+
+| `-logo-size` | short URL (29 modules) | vCard (53 modules) |
+|---|---|---|
+| *omitted* | 49 of 75 ✅ | 225 of 252 ✅ |
+| `0.10` | 25 of 75 ✅ | — |
+| `0.18` | 49 of 75 ✅ | — |
+| `0.20` | — | 169 of 252 ✅ |
+| `0.22` | ❌ rejected | — |
+| `0.28` | — | ❌ rejected |
+
+So a size tuned for a vCard can be refused for a short URL. Leaving `-logo-size`
+off avoids the problem entirely. When it is refused you are told exactly why,
+rather than handed a code that will not scan:
+
+```
+qrgen: qr: logo occludes more than the error-correction budget allows:
+it covers 289 of 841 modules but H error correction allows only 75;
+reduce Logo.Size or raise the ECC level
+```
 
 ---
 

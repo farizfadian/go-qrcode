@@ -49,6 +49,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 		scanDetails = fs.Bool("scan-details", false, "with -scan, also print version, ECC, mask and segments")
 
 		logoPath         = fs.String("logo", "", "path to a PNG or JPEG logo to place at the centre")
+		logoSVGPath      = fs.String("logo-svg", "", "path to an SVG version of the same logo, embedded verbatim in SVG output")
 		logoSize         = fs.Float64("logo-size", 0, "logo width as a fraction of -width; 0 fits the largest the error correction allows")
 		logoRadius       = fs.Float64("logo-radius", 0, "round the logo image's own corners, in pixels")
 		logoBorder       = fs.Float64("logo-border", 0, "frame around the logo, in pixels (default 10)")
@@ -58,8 +59,10 @@ func run(args []string, stdout, stderr io.Writer) int {
 	)
 
 	fs.Usage = func() {
-		fmt.Fprintf(stderr, "usage: qrgen [flags] <content>\n\n")
-		fmt.Fprintf(stderr, "Renders a styled QR code to a PNG, JPEG or SVG file.\n\n")
+		fmt.Fprintf(stderr, "usage: qrgen [flags] <content>\n")
+		fmt.Fprintf(stderr, "       qrgen -scan <image>\n\n")
+		fmt.Fprintf(stderr, "Renders a styled QR code to a PNG, JPEG, WebP or SVG file,\n")
+		fmt.Fprintf(stderr, "or reads one back with -scan.\n\n")
 		fs.PrintDefaults()
 	}
 
@@ -96,6 +99,13 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 
+	if *logoSVGPath != "" && *logoPath == "" {
+		fmt.Fprintln(stderr,
+			"qrgen: -logo-svg needs -logo as well: PNG, JPEG and WebP cannot use vector art,\n"+
+				"       so a raster version is required for them")
+		return 2
+	}
+
 	if *logoPath != "" {
 		opts.Logo = &qr.LogoOptions{
 			Path:         *logoPath,
@@ -105,6 +115,14 @@ func run(args []string, stdout, stderr io.Writer) int {
 			BorderRadius: *logoBorderRadius,
 			BorderColor:  *logoBorderColor,
 			BgColor:      *logoBgColor,
+		}
+		if *logoSVGPath != "" {
+			markup, err := os.ReadFile(*logoSVGPath)
+			if err != nil {
+				fmt.Fprintf(stderr, "qrgen: reading -logo-svg: %v\n", err)
+				return 1
+			}
+			opts.Logo.SVGMarkup = string(markup)
 		}
 	}
 

@@ -370,3 +370,88 @@ func TestScanRejectsBeingGivenContentToo(t *testing.T) {
 		t.Errorf("exit = %d, want 2; stderr: %s", code, errOut)
 	}
 }
+
+const testLogoSVGMarkup = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">` +
+	`<rect x="8" y="8" width="84" height="84" rx="16" fill="#0f766e"/></svg>`
+
+func writeTestLogoSVG(t *testing.T) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "logo.svg")
+	if err := os.WriteFile(path, []byte(testLogoSVGMarkup), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+// -logo-svg upgrades SVG output without changing anything else.
+func TestLogoSVGFlagEmbedsVectorArtInSVGOutput(t *testing.T) {
+	dir := t.TempDir()
+	out := filepath.Join(dir, "qr.svg")
+
+	code, _, errOut := runArgs(t,
+		"-logo", writeTestLogo(t), "-logo-svg", writeTestLogoSVG(t),
+		"-width", "900", "-out", out, sample)
+	if code != 0 {
+		t.Fatalf("exit %d, stderr: %s", code, errOut)
+	}
+	b, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(b, []byte(`rx="16"`)) {
+		t.Error("the vector logo was not embedded verbatim")
+	}
+	if bytes.Contains(b, []byte("data:image/png")) {
+		t.Error("a bitmap was embedded even though vector art was given")
+	}
+}
+
+// Raster output still needs the raster logo, so -logo-svg alone is refused up
+// front rather than producing a code with no logo on it.
+func TestLogoSVGFlagRequiresTheRasterLogoToo(t *testing.T) {
+	out := filepath.Join(t.TempDir(), "qr.png")
+	code, _, errOut := runArgs(t,
+		"-logo-svg", writeTestLogoSVG(t), "-out", out, sample)
+	if code != 2 {
+		t.Fatalf("exit = %d, want 2", code)
+	}
+	if !strings.Contains(errOut, "-logo") {
+		t.Errorf("the error does not say what is missing: %s", errOut)
+	}
+}
+
+func TestLogoSVGFlagReportsAMissingFile(t *testing.T) {
+	out := filepath.Join(t.TempDir(), "qr.png")
+	code, _, errOut := runArgs(t,
+		"-logo", writeTestLogo(t), "-logo-svg", "no-such-file.svg",
+		"-out", out, sample)
+	if code == 0 {
+		t.Fatal("exit 0 with a missing -logo-svg file")
+	}
+	if errOut == "" {
+		t.Error("nothing written to stderr")
+	}
+}
+
+// The usage text drifted out of date once already, claiming only PNG, JPEG and
+// SVG after WebP and scanning had landed. Help that lies is worse than terse
+// help, so it is pinned.
+func TestUsageMentionsEveryCapability(t *testing.T) {
+	_, _, errOut := runArgs(t, "-h")
+	for _, want := range []string{"PNG", "JPEG", "WebP", "SVG", "-scan"} {
+		if !strings.Contains(errOut, want) {
+			t.Errorf("usage text does not mention %q:\n%s", want, errOut)
+		}
+	}
+}
+
+// Every output format the writer accepts must be named in the -format help,
+// and nothing else should be.
+func TestFormatFlagHelpListsTheSupportedFormats(t *testing.T) {
+	_, _, errOut := runArgs(t, "-h")
+	for _, want := range []string{"png", "jpeg", "webp", "svg"} {
+		if !strings.Contains(errOut, want) {
+			t.Errorf("-format help does not mention %q:\n%s", want, errOut)
+		}
+	}
+}
