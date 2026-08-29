@@ -93,13 +93,6 @@ func TestNewRejectsWidthTooSmall(t *testing.T) {
 	}
 }
 
-func TestNewRejectsLogoUntilImplemented(t *testing.T) {
-	_, err := New(Options{Content: testURL, Logo: &LogoOptions{Path: "x.png"}})
-	if !errors.Is(err, ErrLogoUnsupported) {
-		t.Fatalf("error = %v, want ErrLogoUnsupported", err)
-	}
-}
-
 func TestQRIsSafeForConcurrentUse(t *testing.T) {
 	requireDecodableBaseline(t, testURL, ECCAuto)
 	q, err := New(Options{Content: testURL})

@@ -26,6 +26,12 @@ Nothing has been tagged yet. Everything below ships in the first release.
 - All seven finder-pattern shapes: `square`, `rounded`, `circle`,
   `rounded-circle`, `circle-rounded`, `circle-star` and `circle-diamond`, with
   independently configurable inner and outer radii.
+- A centred logo from an `image.Image`, a file path or an `io.Reader`, with a
+  frame, rounded corners on both the frame and the image, automatic sizing, and
+  an enforced occlusion budget. The modules beneath it are excluded before
+  rendering rather than painted over, so nothing shows around a rounded corner.
+  `QR.HiddenModules` and `QR.LogoBudget` report how much of the
+  error-correction allowance a design spends.
 - Independent foreground, background, dot and finder colours; hex with or
   without `#`, and `#00000000` for a transparent background.
 - All four error-correction levels plus automatic selection driven by content
@@ -70,13 +76,20 @@ Three deviations are deliberate:
   Inscribing the diamond restores exactly 1:1:3:1:1. Measured, not assumed: the
   reference proportions fail to decode and these succeed.
 
+### Known limitation
+
+Go 1.22 cannot produce a loadable test binary for the `qr` package on current
+macOS; it aborts with `missing LC_UUID load command`. The cause is inside the Go
+toolchain — the other packages built by the same job run fine, and every other
+Go version and operating system passes, including Go 1.22 on Linux and Windows.
+The declared floor stays at 1.22; macOS users need Go 1.23 or later.
+
 ### Not yet implemented
 
-- Logo support: `Options.Logo` is defined so the API is stable, but `New`
-  rejects it with `ErrLogoUnsupported`.
 - A measured contrast threshold for `ErrLowContrast`, and a check for inverted
   polarity.
 - Golden-image tests and benchmarks.
+- A `-logo` flag on the CLI.
 
 ---
 

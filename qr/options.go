@@ -17,9 +17,8 @@ const (
 
 // Errors returned by New. Compare them with errors.Is.
 var (
-	ErrNoContent       = errors.New("qr: content is empty")
-	ErrBadColor        = errors.New("qr: cannot parse colour")
-	ErrLogoUnsupported = errors.New("qr: logo support is not implemented yet")
+	ErrNoContent = errors.New("qr: content is empty")
+	ErrBadColor  = errors.New("qr: cannot parse colour")
 )
 
 // Options configures a QR code. Only Content is required: every other field has
@@ -71,10 +70,6 @@ type CornerOptions struct {
 
 // LogoOptions describes a centred logo. Exactly one of Image, Path or Reader
 // must be set.
-//
-// New rejects a non-nil Logo with ErrLogoUnsupported for now. The struct is
-// defined already so the public API shape is stable from the first release and
-// adding logo support later is not a breaking change.
 type LogoOptions struct {
 	Image  image.Image
 	Path   string

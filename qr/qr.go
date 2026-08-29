@@ -21,6 +21,11 @@ type QR struct {
 	content string
 	ecc     ECCLevel
 	modules int
+
+	// hiddenModules is how many modules the logo covers, and logoBudget how
+	// many the error-correction level allows. Both are zero without a logo.
+	hiddenModules int
+	logoBudget    int
 }
 
 // New validates opts, encodes the content and builds the drawing. All
@@ -29,9 +34,6 @@ type QR struct {
 func New(opts Options) (*QR, error) {
 	if opts.Content == "" {
 		return nil, ErrNoContent
-	}
-	if opts.Logo != nil {
-		return nil, ErrLogoUnsupported
 	}
 	// Reject a shape this build does not implement. Falling back to square
 	// would hand back a code that silently does not look like what was asked
@@ -73,7 +75,33 @@ func New(opts Options) (*QR, error) {
 		return nil, err
 	}
 
-	ctx := newShapeContext(m, l, nil)
+	// The logo is planned before anything is drawn, because the modules it
+	// covers must never be rendered in the first place. Painting over them
+	// would leave dark fringes around a rounded corner and would spend work on
+	// figures nobody sees.
+	var (
+		plan     *logoPlan
+		excluded func(x, y int) bool
+		hidden   int
+		budget   int
+	)
+	if o.Logo != nil {
+		plan, err = planLogo(*o.Logo, o.Background, l, ecc, m)
+		if err != nil {
+			return nil, err
+		}
+		excluded = plan.hides(l)
+		hidden = countHidden(m, excluded)
+		budget = plan.maxHidden
+		if hidden > budget {
+			return nil, fmt.Errorf(
+				"%w: it covers %d of %d modules but %v error correction allows only %d; "+
+					"reduce Logo.Size or raise the ECC level",
+				ErrLogoTooLarge, hidden, m.Size()*m.Size(), ecc, budget)
+		}
+	}
+
+	ctx := newShapeContext(m, l, excluded)
 	sc := render.Scene{Width: o.Width, Height: o.Width, Background: bg}
 
 	var dots render.Path
@@ -97,7 +125,19 @@ func New(opts Options) (*QR, error) {
 	}
 	sc.Items = append(sc.Items, render.PathItem{Path: corners, Fill: cornerCol})
 
-	return &QR{sc: sc, content: o.Content, ecc: ecc, modules: n}, nil
+	// The logo is painted last so it covers whatever lies beneath.
+	if plan != nil {
+		sc.Items = append(sc.Items, plan.items()...)
+	}
+
+	return &QR{
+		sc:            sc,
+		content:       o.Content,
+		ecc:           ecc,
+		modules:       n,
+		hiddenModules: hidden,
+		logoBudget:    budget,
+	}, nil
 }
 
 // Image returns the rendered raster image. Each call renders afresh, so the
@@ -160,3 +200,12 @@ func flatten(src image.Image) image.Image {
 	draw.Draw(dst, b, src, b.Min, draw.Over)
 	return dst
 }
+
+// HiddenModules returns how many modules the logo covers, or zero when there is
+// no logo. Together with LogoBudget it shows how much of the error-correction
+// allowance a design is spending.
+func (q *QR) HiddenModules() int { return q.hiddenModules }
+
+// LogoBudget returns how many modules the chosen error-correction level allows
+// a logo to cover, or zero when there is no logo.
+func (q *QR) LogoBudget() int { return q.logoBudget }

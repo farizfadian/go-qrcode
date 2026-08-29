@@ -285,7 +285,42 @@ case err != nil:
 }
 ```
 
-### 7. What you can put in a QR code
+### 7. Adding a logo
+
+```go
+q, err := qr.New(qr.Options{
+	Content: "https://example.com",
+	Width:   720,
+	Logo: &qr.LogoOptions{
+		Path:         "logo.png",  // or Image, or Reader — exactly one
+		Size:         0,           // 0 = as large as the error correction allows
+		Radius:       12,          // round the logo image's own corners
+		BorderWidth:  12,          // the frame around it
+		BorderRadius: 18,
+	},
+})
+```
+
+A logo covers data, so the library does three things for you:
+
+1. **Forces the highest error-correction level** when you did not choose one,
+   because that is what pays for the covered modules.
+2. **Never draws the modules underneath.** They are excluded before rendering,
+   so nothing pokes out from under a rounded corner.
+3. **Refuses a logo that is too big.** If it covers more than the error
+   correction can recover, `New` returns `ErrLogoTooLarge` naming the numbers,
+   rather than handing you a code that will not scan.
+
+```go
+fmt.Println(q.HiddenModules(), "of", q.LogoBudget(), "modules covered")
+// 121 of 123 modules covered
+```
+
+Leave `Size` at zero and the library fits the largest logo the budget allows.
+Set it — as a fraction of `Width` — when the design needs a specific size, and
+you will be told if it does not fit.
+
+### 8. What you can put in a QR code
 
 A QR code stores **text and nothing more**. What makes a phone offer to join a
 network, save a contact or open a map is the *shape* of that text — a convention
@@ -433,14 +468,21 @@ works, verified by tests.
 - **All seven finder-pattern shapes**, with independent radii
 - Independent foreground, dot and finder colours; transparent backgrounds
 - All four error-correction levels, plus automatic selection
+- **A centred logo** with a frame, rounded corners, automatic sizing and an
+  enforced error-correction budget
 - The `qrgen` CLI
 
 **Not yet**
 
-- Logo support — `Options.Logo` exists so the API is stable, but `New` rejects
-  it with `ErrLogoUnsupported`
 - A measured contrast threshold, and a check for inverted polarity
 - Golden-image tests and benchmarks
+- A `-logo` flag on the CLI
+
+**One toolchain caveat:** Go 1.22 cannot produce a loadable test binary for this
+package on current macOS — it aborts with `missing LC_UUID load command`. That
+is a Go toolchain limitation, not one of this library; every other Go version
+and operating system passes, including Go 1.22 on Linux and Windows. On macOS,
+use Go 1.23 or later.
 
 See [CHANGELOG.md](CHANGELOG.md) for the full history and
 [`docs/superpowers/`](docs/superpowers/) for the design and implementation plan.
