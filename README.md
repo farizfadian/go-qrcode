@@ -490,11 +490,15 @@ works, verified by tests.
   enforced error-correction budget
 - The `qrgen` CLI
 
+Golden images in `qr/testdata/golden/` pin the rendered geometry, comparing
+decoded pixels rather than file bytes so a change in Go's PNG encoder cannot
+break them. Benchmarks earn their place: they caught a quadratic path append
+that cost 1.36 seconds and 1.2 GB on a large symbol while every test passed.
+
 **Not yet**
 
-- A measured contrast threshold, and a check for inverted polarity
-- Golden-image tests and benchmarks
-- A `-logo` flag on the CLI
+- Nothing blocking v1.0.0. Remaining work is polish: more worked examples and a
+  wider golden matrix.
 
 **One toolchain caveat:** Go 1.22 cannot produce a loadable test binary for this
 package on current macOS — it aborts with `missing LC_UUID load command`. That
@@ -560,11 +564,14 @@ apart, and why adding a shape means touching one file.
 ## 🧪 Testing
 
 ```bash
-go test ./...              # all tests
-go test -race ./...        # with the race detector (needs a C toolchain)
-go test -cover ./...       # coverage
-go vet ./...               # static checks
-gofmt -l .                 # must print nothing
+go test ./...                          # all tests
+go test -race ./...                    # race detector (needs a C toolchain)
+go test -cover ./...                   # coverage
+go test ./qr -run TestGolden -update   # regenerate the golden images
+go test -bench=. -benchmem ./...       # benchmarks
+go test ./qr -fuzz='FuzzNew$'          # fuzz one target
+go vet ./...                           # static checks
+gofmt -l .                             # must print nothing
 ```
 
 Every rendering test decodes its own output with a real QR reader and asserts

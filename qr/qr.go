@@ -114,26 +114,41 @@ func New(opts Options) (*QR, error) {
 	ctx := newShapeContext(m, l, excluded)
 	sc := render.Scene{Width: o.Width, Height: o.Width, Background: bg}
 
-	var dots render.Path
-	for y := 0; y < m.Size(); y++ {
-		for x := 0; x < m.Size(); x++ {
+	// Subpaths are accumulated into one slice and wrapped in a Path at the end.
+	//
+	// The obvious loop — `dots = dots.Append(dotPath(...))` — is quadratic:
+	// Path.Append copies the whole slice each call, which is what makes it safe
+	// to share a Path, so calling it once per module copies the accumulated
+	// work N times over. A version 30 symbol has around nine thousand dark
+	// modules, and that cost 1.36 seconds and 1.2 GB before this was measured.
+	// Every test passed throughout; only a benchmark showed it.
+	n := m.Size()
+	dotSubs := make([]render.SubPath, 0, n*n/2)
+	for y := 0; y < n; y++ {
+		for x := 0; x < n; x++ {
 			if !ctx.Dark(x, y) {
 				continue
 			}
-			dots = dots.Append(dotPath(o.Dots.Type, ctx, x, y))
+			dotSubs = append(dotSubs, dotPath(o.Dots.Type, ctx, x, y).SubPaths...)
 		}
 	}
-	if !dots.IsEmpty() {
-		sc.Items = append(sc.Items, render.PathItem{Path: dots, Fill: dotCol})
+	if len(dotSubs) > 0 {
+		sc.Items = append(sc.Items, render.PathItem{
+			Path: render.Path{SubPaths: dotSubs},
+			Fill: dotCol,
+		})
 	}
 
-	var corners render.Path
-	n := m.Size()
+	cornerSubs := make([]render.SubPath, 0, 9)
 	for _, c := range [][2]int{{0, 0}, {n - 7, 0}, {0, n - 7}} {
 		px, py, s := l.Rect(c[0], c[1])
-		corners = corners.Append(cornerPath(o.Corners.Type, px, py, s, o.Corners.Radius))
+		cornerSubs = append(cornerSubs,
+			cornerPath(o.Corners.Type, px, py, s, o.Corners.Radius).SubPaths...)
 	}
-	sc.Items = append(sc.Items, render.PathItem{Path: corners, Fill: cornerCol})
+	sc.Items = append(sc.Items, render.PathItem{
+		Path: render.Path{SubPaths: cornerSubs},
+		Fill: cornerCol,
+	})
 
 	// The logo is painted last so it covers whatever lies beneath.
 	if plan != nil {

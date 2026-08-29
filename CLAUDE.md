@@ -368,13 +368,20 @@ Required test matrix:
   ours. The honest limit: this cannot catch a fault that appears only when some
   other engine renders the SVG.
 - All four ECC levels
-- Golden-image tests in `testdata/golden/` with a `-update` flag to regenerate
+- Golden-image tests in `qr/testdata/golden/` with a `-update` flag to
+  regenerate. Note the path: Go resolves `testdata` relative to the package, so
+  they live beside `qr/`, not at the repository root. They compare **decoded
+  pixels**, not file bytes — a change in Go's PNG encoder would otherwise break
+  every one without anything in this library having changed.
 
 Also required:
 
 - Table-driven tests throughout
 - Fuzz test on `New` for arbitrary content strings
-- Benchmarks for the default path and the most expensive shape (`fluid`)
+- Benchmarks for the default path and the most expensive shapes. These are not
+  decoration: they caught a quadratic `Path.Append` in `New` that cost 1.36
+  seconds and 1.2 GB on a version 30 symbol while every one of 293 tests passed.
+  Correct and unusably slow is still a bug.
 - `go test -race ./...` must pass; a `*QR` is immutable after `New` — keep it
   that way so it is safe for concurrent use
 

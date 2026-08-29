@@ -93,9 +93,17 @@ The declared floor stays at 1.22; macOS users need Go 1.23 or later.
   while inverted schemes failed at every ratio up to 21. Dots and finder
   patterns are checked separately.
 
-### Not yet implemented
+### Fixed
 
-- Golden-image tests and benchmarks.
+- `New` built its dot and corner paths with a quadratic append. `Path.Append`
+  copies the whole subpath slice on every call — which is what makes a `Path`
+  safe to share — so calling it once per module copied the accumulated work
+  repeatedly. A version 30 symbol took 1.36 seconds and allocated 1.2 GB. It now
+  accumulates into one slice: 4.4 ms and 4.0 MB, and the default path improved
+  4.4x in time and 19x in allocation as well. Found by a benchmark; every test
+  passed before and after.
+
+### Not yet implemented
 
 ---
 
