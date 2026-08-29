@@ -51,8 +51,9 @@ func TestCornerRingIsOneModuleThick(t *testing.T) {
 	}
 }
 
-// The core sits in the middle 3x3, apart from circle-diamond whose rotated
-// square deliberately reaches further into the ring's gap.
+// Every core sits centred in the middle 3x3, circle-diamond included: it is
+// inscribed there rather than overflowing, which is what keeps the finder's
+// 1:1:3:1:1 ratio intact.
 func TestCornerCoreIsCentred(t *testing.T) {
 	const s = 10.0
 	for _, typ := range CornerTypes() {

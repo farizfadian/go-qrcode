@@ -94,20 +94,38 @@ go-qrcode/
 │   ├── encode.go               text -> module matrix (Encoder interface + impl)
 │   ├── matrix.go               module classification: finder / separator / timing /
 │   │                           alignment / format / version / data
+│   ├── layout.go               module -> pixel mapping (added: see note below)
+│   ├── shape.go                ShapeContext, DotType/CornerType, shape registries
 │   ├── shape_dots.go           12 dot shapes -> render.Path
 │   ├── shape_corners.go        7 corner shapes -> render.Path
+│   ├── parse.go                name parsing driven by the registries (added)
 │   └── logo.go                 decode, resize, border, rounded corners, bg, safe zone
 │
 ├── internal/render/            ← shared by every future symbology
 │   ├── path.go                 Path, SubPath, MoveTo/LineTo/CurveTo/Close, bounds
-│   ├── raster.go               Path -> *image.RGBA (PNG / JPEG)
-│   ├── svg.go                  Path -> SVG string
+│   ├── scene.go                Scene: what both renderers consume (added)
+│   ├── raster.go               Scene -> *image.RGBA (PNG / JPEG)
+│   ├── svg.go                  Scene -> SVG string
 │   └── color.go                hex parsing ("ff0000" -> #ff0000), alpha, named passthrough
 │
-├── cmd/qrgen/                  CLI (Phase 5)
-├── examples/
+├── cmd/qrgen/                  CLI
+├── docs/images/                README gallery, every image decode-checked in CI
 └── testdata/golden/
 ```
+
+Three files were added to this layout during implementation:
+
+- **`qr/layout.go`** owns the module-to-pixel mapping. It lives in `qr/`, not in
+  `render/`, because nothing in `internal/render` may know what a module is. The
+  consequence is load-bearing: **shape functions emit paths in absolute pixel
+  coordinates.**
+- **`internal/render/scene.go`** exists because the logo forces it. A `Path`
+  cannot carry a bitmap, yet SVG embeds the logo as `<image>` while the
+  rasteriser uses `draw.Draw`. Without a shared `Scene`, each renderer grows its
+  own logo path — the duplication §2 forbids.
+- **`qr/parse.go`** derives shape names from the registries rather than from a
+  second list, so the CLI and any config-driven caller stay correct as shapes
+  are added without being edited.
 
 ### Why `internal/render/` and not `render/`
 
@@ -244,11 +262,25 @@ Port these from the reference library. Tick as implemented.
 `square` (default) · `dot` · `dot-small` · `tile` · `rounded` · `diamond` ·
 `star` · `fluid` · `fluid-line` · `stripe` · `stripe-row` · `stripe-column`
 
-> **`fluid`, `fluid-line`, `stripe*` are neighbour-aware.** A module's rendered
-> shape depends on which of its 4 (or 8) neighbours are dark — they merge into
-> continuous runs. Design `shape_dots.go` so a shape function receives a
-> neighbour mask, not just an isolated coordinate. Getting this wrong late is
-> expensive; settle the signature in the first iteration.
+> **`fluid`, `fluid-line`, `stripe*` are neighbour-aware**, and a neighbour mask
+> is **not** enough. Corrected during implementation; the original wording said
+> "mask" and it was wrong twice over.
+>
+> `stripe*` merge runs of modules into one figure and must *write* consumption
+> state back so the main loop skips what they swallowed. A read-only snapshot
+> cannot express that. The signature is therefore a context:
+> `func(c ShapeContext, x, y int) render.Path`.
+>
+> `ShapeContext` needs **two** accessors, not one. `Dark(x, y)` means "dark and
+> still claimable" — it is false for a consumed, finder or logo-covered module,
+> and run merging uses it. `Adjacent(x, y)` means "dark, for deciding how edges
+> meet" — it ignores consumption, because the main loop works row by row and a
+> module's northern and western neighbours are always already drawn by the time
+> it is reached. `fluid` asking `Dark` there reports every module as isolated.
+>
+> Build `stripe*` **first** among the shapes: it stresses run merging hardest.
+> But note it does not exercise adjacency at all, so it cannot prove the whole
+> design — `fluid` is the second gate.
 
 ### Corner types (7)
 `square` (default) · `rounded` · `circle` · `rounded-circle` ·
@@ -289,6 +321,19 @@ raster (PNG, JPEG) · SVG string · transparent background (`#00000000`)
 6. **Anti-aliasing at small widths.** Below ~200px, aggressive shapes (`star`,
    `dot-small`) degrade scannability. Document this in the README; consider a
    minimum-width warning.
+7. **Inverted polarity does not scan, and contrast will not catch it.** A light
+   foreground on a dark background has excellent contrast and is still
+   unreadable: the specification assumes dark modules on a light field, so
+   reversing the polarity hides the finder patterns from the detector.
+   Measured, not assumed. This is a separate check from rule 5 and both are
+   still to be implemented.
+8. **A styled finder pattern must preserve the 1:1:3:1:1 ratio.** A reader
+   locates a symbol by scanning for dark:light:dark:light:dark in that ratio
+   through the finder's centre. Any core figure that overfills the ring's
+   five-module gap destroys it. The reference library's `circle-diamond` does
+   exactly that — it rotates a full three-module square, giving a 4.24-module
+   diagonal and a measured ratio of 1:0.38:4.24:0.38:1, which no reader
+   recognises. Inscribe such figures in the 3×3 core instead.
 
 ---
 
@@ -300,14 +345,28 @@ A styled QR code that looks beautiful and does not scan is a bug, not a style.
 `github.com/makiuchi-d/gozxing` to decode the generated image and assert the
 content matches the input.
 
+**And every such test needs an unstyled control first.** Measured over 344
+content/ECC combinations: gozxing fails to decode roughly 2–3% of *valid*
+symbols. Three independent encoders (`piglig/go-qr`, `rsc.io/qr`,
+`boombuler/barcode`) fail on overlapping inputs, so the fault is the decoder,
+not any encoder — do not switch encoders over it. Without a control, the matrix
+below goes flaky for reasons unrelated to the renderer, and a flaky safety net
+stops being one. Render the same content unstyled at a generous module size,
+decode that, and `t.Skip` when it fails.
+
 Required test matrix:
 
 - Every dot type × every corner type — decode round-trip
 - Every dot type × logo present — decode round-trip
 - Short content (v1) and long content (v25+) — decode round-trip
 - Transparent background — flatten onto white, then decode
-- SVG output — rasterise, then decode. **SVG and PNG output must decode to the
-  same content and have matching module geometry.**
+- SVG output — **SVG and PNG output must decode to the same content and have
+  matching module geometry.** Implemented without rasterising the SVG: the test
+  parses the emitted `d` attributes back into `render.Path` values and compares
+  them with the paths the `Scene` holds. Go has no SVG rasteriser in the
+  standard library, and a third-party one's bugs would be indistinguishable from
+  ours. The honest limit: this cannot catch a fault that appears only when some
+  other engine renders the SVG.
 - All four ECC levels
 - Golden-image tests in `testdata/golden/` with a `-update` flag to regenerate
 
@@ -325,7 +384,7 @@ Also required:
 
 ```bash
 go build ./...
-go test ./... -race
+go test ./... -race                      # needs a C toolchain; see note below
 go test ./... -run TestGolden -update    # regenerate golden images
 go vet ./...
 gofmt -l .                               # must output nothing
@@ -333,8 +392,14 @@ golangci-lint run                        # if installed
 go test -bench=. -benchmem ./...
 ```
 
-CI (`.github/workflows/ci.yml`) runs build, vet, gofmt check, and tests with the
-race detector on the latest two Go minor versions.
+CI (`.github/workflows/ci.yml`) runs build, vet, a gofmt check, a `go mod tidy`
+check, and tests with the race detector across Go 1.22 (the declared floor),
+1.24 and 1.25, on Linux, Windows and macOS. It also asserts the runtime
+dependency footprint and decodes every image the README displays.
+
+**The race detector needs cgo**, so it cannot run on a Windows machine without a
+C toolchain. CI is the only place it runs. Do not treat a green local
+`go test ./...` as evidence of race-freedom.
 
 ---
 
@@ -354,6 +419,19 @@ Work in this order. Do not start a phase before the previous one's tests pass.
   benchmarks, fuzzing, godoc pass.
 - **Phase 6 — v1.0.0.** Tag and release. Optionally replace the third-party
   encoder with a built-in one (non-breaking behind the `Encoder` interface).
+
+**Actual order taken.** Phases 1–3 ran as written. The CLI, README gallery and
+release workflow (Phase 5) were pulled forward ahead of the logo, at Fariz's
+request, so the repository had a usable front door earlier. That cost nothing
+because `cmd/qrgen` reads its shape list from the registry: every shape added
+afterwards appeared in `qrgen -h` with no edit to `cmd/`.
+
+**No release until the library is feature-complete.** Fariz's decision, and it
+matches this roadmap: v1.0.0 belongs at Phase 6. Go treats v1.0.0 as an API
+stability promise — after it, any breaking change needs a `/v2` module path and
+every consumer must edit their imports. `ErrLogoUnsupported` is due to be
+removed when the logo lands, so tagging v1.0.0 now would mean either breaking
+semver later or carrying a dead error forever.
 
 Only after v1.0.0: consider DataMatrix and Aztec (styling applies), then 1D
 symbologies via `boombuler/barcode` (styling does not apply — the value is SVG
