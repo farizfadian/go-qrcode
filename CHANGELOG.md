@@ -86,6 +86,14 @@ toolchain — the other packages built by the same job run fine, and every other
 Go version and operating system passes, including Go 1.22 on Linux and Windows.
 The declared floor stays at 1.22; macOS users need Go 1.23 or later.
 
+- Lossless WebP output, `QR.WebP` and `qrgen -out x.webp`. Measured 19 to 48
+  percent smaller than the equivalent PNG depending on dot shape. This adds a
+  third runtime dependency; the reasoning is in
+  [ADR 0001](docs/adr/0001-webp-output-dependency.md).
+- Reading QR codes: `Scan`, `ScanFile` and `ScanReader`, returning content plus
+  version, module count, ECC level, mask and per-segment encoding modes. It uses
+  the decoder already inside `piglig/go-qr`, so it costs no new dependency.
+  `qrgen -scan` and `-scan-details` expose it on the command line.
 - Colour-scheme validation. `ErrLowContrast` fires below a WCAG contrast ratio
   of 3.5, and `ErrInvertedPolarity` fires whenever the foreground is lighter
   than the background. Both thresholds were measured against a real decoder:

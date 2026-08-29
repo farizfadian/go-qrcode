@@ -112,17 +112,20 @@ jobs:
           go-version: '1.25'
 
       # A library people drop into other projects must not quietly grow its
-      # dependency set. gozxing is a test dependency and must never reach a
-      # consumer's build.
-      - name: Assert the library links only its two runtime dependencies
+      # dependency set. The list is exact, so adding to it is a deliberate act
+      # with an ADR behind it — see docs/adr/. gozxing in particular is a test
+      # dependency and must never reach a consumer's build.
+      - name: Assert the library links only its declared runtime dependencies
         run: |
+          allowed='^(github\.com/piglig/go-qr|golang\.org/x/image|github\.com/HugoSmits86/nativewebp)'
           deps=$(go list -deps ./qr | grep -E '^(github|golang|rsc)\.' \
                  | grep -v '^github.com/farizfadian/go-qrcode' | sort -u)
           echo "$deps"
-          unexpected=$(echo "$deps" | grep -vE '^(github\.com/piglig/go-qr|golang\.org/x/image)' || true)
+          unexpected=$(echo "$deps" | grep -vE "$allowed" || true)
           if [ -n "$unexpected" ]; then
             echo "Unexpected runtime dependencies:"
             echo "$unexpected"
+            echo "Adding one needs an ADR under docs/adr/ and an update here."
             exit 1
           fi
 

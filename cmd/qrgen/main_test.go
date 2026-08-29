@@ -253,3 +253,120 @@ func TestInvertedColoursAreRejectedByTheCLI(t *testing.T) {
 		t.Errorf("stderr does not explain the polarity rule: %s", errOut)
 	}
 }
+
+func TestWebPOutputIsWrittenAndReadable(t *testing.T) {
+	out := filepath.Join(t.TempDir(), "qr.webp")
+	if code, _, errOut := runArgs(t, "-out", out, "-width", "500", sample); code != 0 {
+		t.Fatalf("exit %d, stderr: %s", code, errOut)
+	}
+	b, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.HasPrefix(b, []byte("RIFF")) {
+		t.Fatalf("not a RIFF container: %.8q", b)
+	}
+	// The scan path must read back what the write path produced.
+	code, stdout, errOut := runArgs(t, "-scan", out)
+	if code != 0 {
+		t.Fatalf("scan exit %d, stderr: %s", code, errOut)
+	}
+	if strings.TrimSpace(stdout) != sample {
+		t.Errorf("scanned %q, want %q", strings.TrimSpace(stdout), sample)
+	}
+}
+
+func TestWebPIsSmallerThanPNG(t *testing.T) {
+	dir := t.TempDir()
+	pngPath := filepath.Join(dir, "qr.png")
+	webpPath := filepath.Join(dir, "qr.webp")
+
+	for _, p := range []string{pngPath, webpPath} {
+		if code, _, errOut := runArgs(t, "-out", p, "-width", "600", sample); code != 0 {
+			t.Fatalf("%s: exit %d, stderr: %s", p, code, errOut)
+		}
+	}
+	pngInfo, err := os.Stat(pngPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	webpInfo, err := os.Stat(webpPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if webpInfo.Size() >= pngInfo.Size() {
+		t.Errorf("WebP is %d bytes, PNG is %d; the smaller format is the reason it exists",
+			webpInfo.Size(), pngInfo.Size())
+	}
+}
+
+func TestScanFlagPrintsTheContent(t *testing.T) {
+	out := filepath.Join(t.TempDir(), "qr.png")
+	if code, _, errOut := runArgs(t, "-out", out, sample); code != 0 {
+		t.Fatalf("exit %d, stderr: %s", code, errOut)
+	}
+
+	code, stdout, errOut := runArgs(t, "-scan", out)
+	if code != 0 {
+		t.Fatalf("exit %d, stderr: %s", code, errOut)
+	}
+	// Content alone on stdout, so the command composes with a shell pipeline.
+	if strings.TrimSpace(stdout) != sample {
+		t.Errorf("stdout = %q, want just the content", stdout)
+	}
+}
+
+func TestScanDetailsPrintsTheMetadata(t *testing.T) {
+	out := filepath.Join(t.TempDir(), "qr.png")
+	if code, _, errOut := runArgs(t, "-out", out, "-ecc", "H", sample); code != 0 {
+		t.Fatalf("exit %d, stderr: %s", code, errOut)
+	}
+
+	code, stdout, errOut := runArgs(t, "-scan", out, "-scan-details")
+	if code != 0 {
+		t.Fatalf("exit %d, stderr: %s", code, errOut)
+	}
+	for _, want := range []string{sample, "version:", "ecc:", "mask:", "segments:", "byte"} {
+		if !strings.Contains(stdout, want) {
+			t.Errorf("stdout missing %q:\n%s", want, stdout)
+		}
+	}
+	if !strings.Contains(stdout, "ecc:      H") {
+		t.Errorf("the reported ECC does not match what was requested:\n%s", stdout)
+	}
+}
+
+func TestScanReportsAnUnreadableImage(t *testing.T) {
+	blank := filepath.Join(t.TempDir(), "blank.png")
+	img := image.NewRGBA(image.Rect(0, 0, 100, 100))
+	for y := 0; y < 100; y++ {
+		for x := 0; x < 100; x++ {
+			img.Set(x, y, color.RGBA{0xff, 0xff, 0xff, 0xff})
+		}
+	}
+	f, err := os.Create(blank)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := png.Encode(f, img); err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+
+	if code, _, errOut := runArgs(t, "-scan", blank); code == 0 {
+		t.Fatalf("exit 0 on an image with no code; stderr: %s", errOut)
+	}
+	if code, _, _ := runArgs(t, "-scan", "no-such-file.png"); code == 0 {
+		t.Error("exit 0 on a missing file")
+	}
+}
+
+func TestScanRejectsBeingGivenContentToo(t *testing.T) {
+	out := filepath.Join(t.TempDir(), "qr.png")
+	if code, _, _ := runArgs(t, "-out", out, sample); code != 0 {
+		t.Fatal("setup failed")
+	}
+	if code, _, errOut := runArgs(t, "-scan", out, "some content"); code != 2 {
+		t.Errorf("exit = %d, want 2; stderr: %s", code, errOut)
+	}
+}

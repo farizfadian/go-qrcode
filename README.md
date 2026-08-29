@@ -12,6 +12,8 @@ both a raster and an SVG renderer. Other Go QR libraries give you a logo *or* a
 colour scheme; this one aims at the whole visual surface, and proves every shape
 still scans with a round-trip decode test.
 
+It reads QR codes too, so you can generate and verify with one dependency.
+
 > An idea from [Fariz](https://github.com/farizfadian), built with
 > [Claude AI](https://claude.ai).
 
@@ -79,8 +81,9 @@ just a link.
 
 **Design principles**
 
-- ✅ **Two runtime dependencies, and CI enforces it** — `piglig/go-qr` and
-  `golang.org/x/image`, nothing more. The test decoder never reaches your build.
+- ✅ **Three runtime dependencies, all pure Go, and CI enforces the exact list**
+  — `piglig/go-qr`, `golang.org/x/image` and `HugoSmits86/nativewebp`. Adding a
+  fourth takes an [ADR](docs/adr/). No cgo, so cross-compilation just works.
 - ✅ **Go 1.22 floor** — dependencies are pinned so upgrading this library never
   forces your toolchain forward.
 - ✅ **Zero-value options work** — only `Content` is required.
@@ -145,6 +148,7 @@ err = q.WritePNGFile("qr.png")
 // To any io.Writer — an HTTP response, a buffer, a pipe
 err = q.PNG(w)
 err = q.JPEG(w, 92)   // quality 1-100
+err = q.WebP(w)       // lossless, 19-48% smaller than the PNG
 err = q.SVG(w)
 
 // As a string, handy for embedding in HTML
@@ -368,6 +372,44 @@ much larger grid than a MeCard carrying the same details — 57 modules against 
 in the examples. At a fixed `Width`, more modules means smaller modules, which
 is *harder* to scan. Raise `Width` instead.
 
+### 9. Reading a QR code back
+
+The library scans as well as it draws, using the decoder that already ships
+inside its encoder — so this costs no extra dependency.
+
+```go
+res, err := qr.ScanFile("photo.png")   // or Scan(img), or ScanReader(r)
+if errors.Is(err, qr.ErrNoQRCode) {
+	// nothing readable in the image
+}
+
+fmt.Println(res.Content)   // https://example.com
+fmt.Println(res.Version)   // 3
+fmt.Println(res.Modules)   // 29
+fmt.Println(res.ECC)       // M
+fmt.Println(res.Mask)      // 2
+
+for _, s := range res.Segments {
+	fmt.Println(s.Mode, s.Chars) // byte 40
+}
+```
+
+PNG, JPEG and WebP inputs are all understood.
+
+**What it handles**, measured rather than promised: everything this library
+renders, including every dot and finder shape and codes with a logo; rotation up
+to about 15 degrees; and images downscaled several times over. Rotation near 45
+degrees fails.
+
+**What has not been proven:** camera photographs with perspective distortion,
+uneven lighting or motion blur. If that is your input, test it against your own
+samples before relying on this.
+
+**What is deliberately absent:** the module matrix. The decoder does not expose
+it, and re-encoding the content would give *a* matrix for the same text rather
+than *the* matrix that was scanned — the segmentation could differ. Returning
+that as if it were the scanned symbol would be a quiet lie.
+
 ---
 
 ## 💻 CLI
@@ -401,6 +443,23 @@ qrgen -out qr.png -width 900 -logo logo.png "https://example.com"
 # wrote qr.png (37 modules, ECC H, logo hides 121 of 123 allowed)
 
 qrgen -out card.png -width 900       -logo logo.png -logo-size 0.18 -logo-radius 12       -logo-border 12 -logo-border-radius 18       "https://example.com"
+
+# WebP output, 19-48% smaller than the PNG
+qrgen -out qr.webp -width 600 "https://example.com"
+
+# Read a code back. The content goes to stdout on its own line,
+# so it composes with a pipeline.
+qrgen -scan qr.webp
+# https://example.com
+
+qrgen -scan qr.png -scan-details
+# https://example.com
+#
+# version:  3 (29 modules)
+# ecc:      M
+# mask:     2
+# segments:
+#   1. byte          40 chars, 40 bytes
 
 # See every flag, and the shapes this build supports
 qrgen -h
@@ -438,6 +497,7 @@ func New(opts Options) (*QR, error)
 ```go
 func (q *QR) PNG(w io.Writer) error
 func (q *QR) JPEG(w io.Writer, quality int) error
+func (q *QR) WebP(w io.Writer) error
 func (q *QR) SVG(w io.Writer) error
 func (q *QR) SVGString() (string, error)
 func (q *QR) Image() image.Image
@@ -467,10 +527,22 @@ func ParseCornerType(s string) (CornerType, error)
 func ParseECCLevel(s string) (ECCLevel, error)
 ```
 
+### Scanning
+
+```go
+func Scan(img image.Image) (*ScanResult, error)
+func ScanFile(path string) (*ScanResult, error)
+func ScanReader(r io.Reader) (*ScanResult, error)
+```
+
+`ScanResult` carries `Content`, `Version`, `Modules`, `ECC`, `Mask` and
+`Segments`.
+
 ### Errors
 
 `ErrNoContent` · `ErrWidthTooSmall` · `ErrBadColor` · `ErrContentTooLong` ·
-`ErrUnknownShape` · `ErrLogoUnsupported` — all comparable with `errors.Is`.
+`ErrUnknownShape` · `ErrLowContrast` · `ErrInvertedPolarity` · `ErrLogoSource` ·
+`ErrLogoTooLarge` · `ErrNoQRCode` — all comparable with `errors.Is`.
 
 ---
 
@@ -481,7 +553,8 @@ works, verified by tests.
 
 **Working today**
 
-- PNG, JPEG, SVG and `image.Image` output from one shared geometry
+- PNG, JPEG, WebP, SVG and `image.Image` output from one shared geometry
+- **Reading QR codes back**, with version, ECC, mask and segment metadata
 - **All twelve dot shapes**, including the neighbour-aware ones
 - **All seven finder-pattern shapes**, with independent radii
 - Independent foreground, dot and finder colours; transparent backgrounds

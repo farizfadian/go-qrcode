@@ -1,7 +1,8 @@
-// Command qrgen renders a styled QR code to a PNG, JPEG or SVG file.
+// Command qrgen renders a styled QR code, and reads one back.
 //
 //	qrgen -out logo.png "https://example.com"
 //	qrgen -out card.svg -width 512 -fg '#1f2937' "hello"
+//	qrgen -scan photo.png
 //
 // The output format follows the -out extension unless -format says otherwise.
 // The shapes qrgen accepts are read from the library's shape registry, so the
@@ -31,7 +32,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 
 	var (
 		out         = fs.String("out", "qr.png", "output file; its extension selects the format unless -format is given")
-		format      = fs.String("format", "", "output format: png, jpeg or svg (default: from the -out extension)")
+		format      = fs.String("format", "", "output format: png, jpeg, webp or svg (default: from the -out extension)")
 		width       = fs.Int("width", 0, "image size in pixels")
 		margin      = fs.Int("margin", 0, "quiet zone in modules")
 		ecc         = fs.String("ecc", "auto", "error correction: auto, L, M, Q or H")
@@ -43,6 +44,9 @@ func run(args []string, stdout, stderr io.Writer) int {
 		cornerColor = fs.String("corner-color", "", "finder colour; defaults to -fg")
 		quality     = fs.Int("quality", 92, "JPEG quality, 1 to 100")
 		showVersion = fs.Bool("version", false, "print the version and exit")
+
+		scanPath    = fs.String("scan", "", "read a QR code from this image instead of writing one")
+		scanDetails = fs.Bool("scan-details", false, "with -scan, also print version, ECC, mask and segments")
 
 		logoPath         = fs.String("logo", "", "path to a PNG or JPEG logo to place at the centre")
 		logoSize         = fs.Float64("logo-size", 0, "logo width as a fraction of -width; 0 fits the largest the error correction allows")
@@ -69,6 +73,14 @@ func run(args []string, stdout, stderr io.Writer) int {
 	if *showVersion {
 		fmt.Fprintf(stdout, "qrgen %s\n", qr.Version)
 		return 0
+	}
+
+	if *scanPath != "" {
+		if fs.NArg() != 0 {
+			fmt.Fprintln(stderr, "qrgen: -scan reads an image; do not also pass content")
+			return 2
+		}
+		return scan(*scanPath, *scanDetails, stdout, stderr)
 	}
 
 	if fs.NArg() != 1 {
@@ -112,6 +124,31 @@ func run(args []string, stdout, stderr io.Writer) int {
 			*out, code.Modules(), code.ECC(), code.HiddenModules(), code.LogoBudget())
 	} else {
 		fmt.Fprintf(stdout, "wrote %s (%d modules, ECC %v)\n", *out, code.Modules(), code.ECC())
+	}
+	return 0
+}
+
+// scan reads a QR code from an image file and prints what it found. The
+// content goes to stdout on its own line, so it composes with other tools.
+func scan(path string, details bool, stdout, stderr io.Writer) int {
+	res, err := qr.ScanFile(path)
+	if err != nil {
+		fmt.Fprintf(stderr, "qrgen: %v\n", err)
+		return 1
+	}
+
+	fmt.Fprintln(stdout, res.Content)
+	if !details {
+		return 0
+	}
+
+	fmt.Fprintf(stdout, "\nversion:  %d (%d modules)\n", res.Version, res.Modules)
+	fmt.Fprintf(stdout, "ecc:      %v\n", res.ECC)
+	fmt.Fprintf(stdout, "mask:     %d\n", res.Mask)
+	fmt.Fprintln(stdout, "segments:")
+	for i, s := range res.Segments {
+		fmt.Fprintf(stdout, "  %d. %-13s %d chars, %d bytes\n",
+			i+1, s.Mode, s.Chars, len(s.Bytes))
 	}
 	return 0
 }
@@ -160,10 +197,12 @@ func write(code *qr.QR, path, format string, quality int) error {
 		err = code.SVG(f)
 	case "jpg", "jpeg":
 		err = code.JPEG(f, quality)
+	case "webp":
+		err = code.WebP(f)
 	case "png", "":
 		err = code.PNG(f)
 	default:
-		return fmt.Errorf("unknown format %q; want png, jpeg or svg", format)
+		return fmt.Errorf("unknown format %q; want png, jpeg, webp or svg", format)
 	}
 	if err != nil {
 		return err

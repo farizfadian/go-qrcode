@@ -61,7 +61,12 @@ The value-add there is SVG output and human-readable text, not encoding.
 
 ### Non-goals
 
-- Barcode **decoding** (used only in tests, see §6)
+- ~~Barcode **decoding**~~ — **reversed 2026-08-29.** QR *reading* now ships as
+  `qr.Scan`. The reason the non-goal existed was dependency cost, and that
+  turned out not to apply: `piglig/go-qr`, already the encoder, exposes
+  `DecodeDetailed`, so reading came at zero new dependencies and matched
+  gozxing on every input tested. Decoding *other symbologies* remains a
+  non-goal
 - Micro QR / rMQR
 - Browser/WASM build in v1 (revisit after v1.0.0)
 - Animated or video codes

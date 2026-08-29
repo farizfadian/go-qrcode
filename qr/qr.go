@@ -11,6 +11,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/HugoSmits86/nativewebp"
+
 	"github.com/farizfadian/go-qrcode/internal/render"
 )
 
@@ -176,6 +178,15 @@ func (q *QR) PNG(w io.Writer) error { return png.Encode(w, q.Image()) }
 // transparent background is flattened onto white, since JPEG has no alpha.
 func (q *QR) JPEG(w io.Writer, quality int) error {
 	return jpeg.Encode(w, flatten(q.Image()), &jpeg.Options{Quality: quality})
+}
+
+// WebP writes the code to w as a lossless WebP.
+//
+// WebP is typically 30 to 40 percent smaller than the equivalent PNG for an
+// image like a QR code, which is flat colour with hard edges. The encoding is
+// lossless, so the modules stay exact.
+func (q *QR) WebP(w io.Writer) error {
+	return nativewebp.Encode(w, q.Image(), nil)
 }
 
 // WritePNGFile renders the code and writes it to path.
