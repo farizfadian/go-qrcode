@@ -107,9 +107,9 @@ func New(opts Options) (*QR, error) {
 		budget = plan.maxHidden
 		if hidden > budget {
 			return nil, fmt.Errorf(
-				"%w: it covers %d of %d modules but %v error correction allows only %d; "+
-					"reduce Logo.Size or raise the ECC level",
-				ErrLogoTooLarge, hidden, m.Size()*m.Size(), ecc, budget)
+				"%w: it covers %d of %d modules but %v error correction allows only %d; %s",
+				ErrLogoTooLarge, hidden, m.Size()*m.Size(), ecc, budget,
+				logoTooLargeAdvice(o, ecc))
 		}
 	}
 

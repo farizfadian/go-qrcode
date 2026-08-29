@@ -258,6 +258,28 @@ func resolveLogoColor(value, fallback string) (color.RGBA, error) {
 	return render.ParseColor(value)
 }
 
+// logoTooLargeAdvice says what the caller can actually do about an oversized
+// logo, given what they already asked for.
+//
+// Suggesting a higher error-correction level when the code is already at High
+// sends someone chasing a setting that does not exist, and they are as likely to
+// conclude the library is broken as that the advice was wrong.
+func logoTooLargeAdvice(o Options, ecc ECCLevel) string {
+	switch {
+	case o.Logo != nil && o.Logo.Size > 0 && ecc < ECCHigh:
+		return "reduce Logo.Size, leave it unset to fit automatically, " +
+			"or raise ECC to H for a larger budget"
+	case o.Logo != nil && o.Logo.Size > 0:
+		return "reduce Logo.Size, or leave it unset to fit the largest logo " +
+			"this symbol can carry; ECC is already at H, the highest level"
+	case ecc < ECCHigh:
+		return "raise ECC to H for a larger budget, or set Logo.BorderWidth lower"
+	default:
+		return "the symbol is too small to carry a logo at all; " +
+			"ECC is already at H, so encode more content or drop the logo"
+	}
+}
+
 // countHidden returns how many of the symbol's modules the predicate hides.
 // Both dark and light modules count: a light module carries data too, so
 // covering one costs the same error-correction budget.

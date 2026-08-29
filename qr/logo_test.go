@@ -402,3 +402,63 @@ func TestSVGWithVectorLogoIsWellFormed(t *testing.T) {
 		}
 	}
 }
+
+// An error that suggests an impossible fix wastes the reader's time and makes
+// the library look broken. The advice must fit what was actually asked for.
+func TestOversizedLogoAdviceFitsTheSituation(t *testing.T) {
+	t.Run("already at H does not suggest raising ECC", func(t *testing.T) {
+		_, err := New(Options{
+			Content: "https://example.com",
+			Width:   900,
+			ECC:     ECCHigh,
+			Logo:    &LogoOptions{Image: testLogo(64, 64), Size: 0.22},
+		})
+		if !errors.Is(err, ErrLogoTooLarge) {
+			t.Fatalf("error = %v, want ErrLogoTooLarge", err)
+		}
+		if strings.Contains(err.Error(), "raise ECC") {
+			t.Errorf("the advice suggests raising an already-maximal level:\n%v", err)
+		}
+		if !strings.Contains(err.Error(), "already at H") {
+			t.Errorf("the advice does not say why raising it is not an option:\n%v", err)
+		}
+	})
+
+	t.Run("below H does suggest raising ECC", func(t *testing.T) {
+		_, err := New(Options{
+			Content: "https://example.com",
+			Width:   900,
+			ECC:     ECCMedium,
+			Logo:    &LogoOptions{Image: testLogo(64, 64), Size: 0.22},
+		})
+		if !errors.Is(err, ErrLogoTooLarge) {
+			t.Fatalf("error = %v, want ErrLogoTooLarge", err)
+		}
+		if !strings.Contains(err.Error(), "raise ECC to H") {
+			t.Errorf("the advice omits the headroom that exists:\n%v", err)
+		}
+	})
+
+	t.Run("every message names a reachable action", func(t *testing.T) {
+		// Whatever the situation, the reader must be told something they can do.
+		for _, tc := range []struct {
+			name string
+			opts Options
+		}{
+			{"explicit size at H", Options{
+				Content: "https://example.com", Width: 900, ECC: ECCHigh,
+				Logo: &LogoOptions{Image: testLogo(64, 64), Size: 0.22}}},
+			{"explicit size at M", Options{
+				Content: "https://example.com", Width: 900, ECC: ECCMedium,
+				Logo: &LogoOptions{Image: testLogo(64, 64), Size: 0.22}}},
+		} {
+			_, err := New(tc.opts)
+			if err == nil {
+				t.Fatalf("%s: expected a rejection", tc.name)
+			}
+			if !strings.Contains(err.Error(), "Logo.Size") {
+				t.Errorf("%s: no actionable advice in:\n%v", tc.name, err)
+			}
+		}
+	})
+}
