@@ -270,13 +270,15 @@ q, _ := qr.New(qr.Options{
 Ask the library which shapes your build supports rather than guessing:
 
 ```go
-fmt.Println(qr.DotTypeNames())    // [square]
-fmt.Println(qr.CornerTypeNames()) // [square]
+fmt.Println(qr.DotTypeNames())
+// [diamond dot dot-small fluid fluid-line rounded square star stripe stripe-column stripe-row tile]
+fmt.Println(qr.CornerTypeNames())
+// [circle circle-diamond circle-rounded circle-star rounded rounded-circle square]
 ```
 
-A shape that is named in the specification but not yet implemented is
-**rejected** with `qr.ErrUnknownShape`, listing what is available. It will not
-silently draw squares and let you ship a design you did not ask for.
+A name the build does not recognise is **rejected** with `qr.ErrUnknownShape`,
+listing what is available. It will not silently draw squares and let you ship a
+design you did not ask for.
 
 ### 6. Handling errors
 
@@ -671,10 +673,10 @@ func ScanReader(r io.Reader) (*ScanResult, error)
 
 ---
 
-## 🚧 Status
+## ✅ Status
 
-This library is under active construction. What is listed here is what actually
-works, verified by tests.
+Feature-complete and released as **v1.0.0**. What is listed here is what
+actually works, verified by tests.
 
 **Working today**
 
@@ -693,10 +695,14 @@ decoded pixels rather than file bytes so a change in Go's PNG encoder cannot
 break them. Benchmarks earn their place: they caught a quadratic path append
 that cost 1.36 seconds and 1.2 GB on a large symbol while every test passed.
 
-**Not yet**
+**Deliberately out of scope**
 
-- Nothing blocking v1.0.0. Remaining work is polish: more worked examples and a
-  wider golden matrix.
+- 1D barcodes (Code 128, EAN, Code 39). Their bar widths are fixed by
+  specification, so nothing this library does — shaped modules, styled
+  finders — can apply to them, and the ecosystems that need them already
+  render them well (JasperReports ships Barcode4J, browsers have barcode
+  fonts and JsBarcode).
+- Micro QR, rMQR, animated codes.
 
 **One toolchain caveat:** Go 1.22 cannot produce a loadable test binary for this
 package on current macOS — it aborts with `missing LC_UUID load command`. That

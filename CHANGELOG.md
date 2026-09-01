@@ -7,9 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
+## [1.0.0] — 2026-09-02
 
-Nothing has been tagged yet. Everything below ships in the first release.
+The first release, and a complete one: everything the library set out to do —
+styled generation, a decorated logo, four output formats, scanning, and a CLI —
+ships here, verified by round-trip decode tests against a real QR reader.
 
 ### Added
 
@@ -17,8 +19,11 @@ Nothing has been tagged yet. Everything below ships in the first release.
 
 - `qr.New(qr.Options)` returning an immutable `*QR` that is safe to render from
   many goroutines at once.
-- Output as PNG, JPEG, SVG and `image.Image`, all from one shared scene
-  description so the raster and vector forms cannot drift apart.
+- Output as PNG, JPEG, WebP, SVG and `image.Image`, all from one shared scene
+  description so the raster and vector forms cannot drift apart. WebP is
+  lossless and measured 19 to 48 percent smaller than the equivalent PNG
+  depending on dot shape; it adds a third runtime dependency, with the
+  reasoning in [ADR 0001](docs/adr/0001-webp-output-dependency.md).
 - All twelve dot shapes: `square`, `dot`, `dot-small`, `tile`, `rounded`,
   `diamond`, `star`, `fluid`, `fluid-line`, `stripe`, `stripe-row` and
   `stripe-column`. The last five are neighbour-aware, merging runs of modules
@@ -32,8 +37,23 @@ Nothing has been tagged yet. Everything below ships in the first release.
   rendering rather than painted over, so nothing shows around a rounded corner.
   `QR.HiddenModules` and `QR.LogoBudget` report how much of the
   error-correction allowance a design spends.
+- `LogoOptions.SVGMarkup`, an optional vector version of the logo embedded
+  directly into SVG output as a nested `<svg>`, so gradients, rounded corners,
+  strokes and text survive exactly as authored. It sits alongside the raster
+  logo rather than replacing it, which keeps every output format working and
+  every configuration error at `New`.
+- Reading QR codes: `Scan`, `ScanFile` and `ScanReader`, returning content plus
+  version, module count, ECC level, mask and per-segment encoding modes. It
+  uses the decoder already inside `piglig/go-qr`, so it costs no new
+  dependency.
 - Independent foreground, background, dot and finder colours; hex with or
   without `#`, and `#00000000` for a transparent background.
+- Colour-scheme validation. `ErrLowContrast` fires below a WCAG contrast ratio
+  of 3.5, and `ErrInvertedPolarity` fires whenever the foreground is lighter
+  than the background. Both thresholds were measured against a real decoder:
+  3.54 was the lowest ratio that still decoded and 2.96 the highest that
+  failed, while inverted schemes failed at every ratio up to 21. Dots and
+  finder patterns are checked separately.
 - All four error-correction levels plus automatic selection driven by content
   length.
 - `ParseDotType`, `ParseCornerType`, `ParseECCLevel` and the matching `…Types`
@@ -42,11 +62,13 @@ Nothing has been tagged yet. Everything below ships in the first release.
 
 #### CLI
 
-- `qrgen`, rendering to PNG, JPEG or SVG. The format follows the `-out`
+- `qrgen`, rendering to PNG, JPEG, WebP or SVG. The format follows the `-out`
   extension unless `-format` overrides it, and the flag help lists exactly the
   shapes the build can draw.
-- `-logo` and its companions on the CLI, including `-logo-svg` for the vector
-  version, reporting how much of the error-correction budget the logo spent.
+- `-logo` and its companions, including `-logo-svg` for the vector version,
+  reporting how much of the error-correction budget the logo spent.
+- `-scan` and `-scan-details`, printing the decoded content on its own line so
+  it composes with a pipeline, with the symbol metadata behind the extra flag.
 
 #### Project
 
@@ -56,11 +78,21 @@ Nothing has been tagged yet. Everything below ships in the first release.
 - Release workflow triggered by a `v*` tag, publishing eleven cross-compiled
   `qrgen` binaries with checksums.
 
+### Fixed
+
+- `New` built its dot and corner paths with a quadratic append. `Path.Append`
+  copies the whole subpath slice on every call — which is what makes a `Path`
+  safe to share — so calling it once per module copied the accumulated work
+  repeatedly. A version 30 symbol took 1.36 seconds and allocated 1.2 GB. It now
+  accumulates into one slice: 4.4 ms and 4.0 MB, and the default path improved
+  4.4x in time and 19x in allocation as well. Found by a benchmark; every test
+  passed before and after.
+
 ### Notes on behaviour that differs from the reference library
 
 The visual behaviour is modelled on
 [`zxpsuper/qrcode-with-logos`](https://github.com/zxpsuper/qrcode-with-logos).
-Three deviations are deliberate:
+Four deviations are deliberate:
 
 - **`Margin` is measured in modules, not pixels.** The reference treats its
   margin as pixels, which yields an effective quiet zone of roughly 0.65 modules
@@ -84,39 +116,7 @@ Go 1.22 cannot produce a loadable test binary for the `qr` package on current
 macOS; it aborts with `missing LC_UUID load command`. The cause is inside the Go
 toolchain — the other packages built by the same job run fine, and every other
 Go version and operating system passes, including Go 1.22 on Linux and Windows.
-The declared floor stays at 1.22; macOS users need Go 1.23 or later.
-
-- Lossless WebP output, `QR.WebP` and `qrgen -out x.webp`. Measured 19 to 48
-  percent smaller than the equivalent PNG depending on dot shape. This adds a
-  third runtime dependency; the reasoning is in
-  [ADR 0001](docs/adr/0001-webp-output-dependency.md).
-- Reading QR codes: `Scan`, `ScanFile` and `ScanReader`, returning content plus
-  version, module count, ECC level, mask and per-segment encoding modes. It uses
-  the decoder already inside `piglig/go-qr`, so it costs no new dependency.
-  `qrgen -scan` and `-scan-details` expose it on the command line.
-- `LogoOptions.SVGMarkup`, an optional vector version of the logo embedded
-  directly into SVG output as a nested `<svg>`, so gradients, rounded corners,
-  strokes and text survive exactly as authored. It sits alongside the raster
-  logo rather than replacing it, which keeps every output format working and
-  every configuration error at `New`.
-- Colour-scheme validation. `ErrLowContrast` fires below a WCAG contrast ratio
-  of 3.5, and `ErrInvertedPolarity` fires whenever the foreground is lighter
-  than the background. Both thresholds were measured against a real decoder:
-  3.54 was the lowest ratio that still decoded and 2.96 the highest that failed,
-  while inverted schemes failed at every ratio up to 21. Dots and finder
-  patterns are checked separately.
-
-### Fixed
-
-- `New` built its dot and corner paths with a quadratic append. `Path.Append`
-  copies the whole subpath slice on every call — which is what makes a `Path`
-  safe to share — so calling it once per module copied the accumulated work
-  repeatedly. A version 30 symbol took 1.36 seconds and allocated 1.2 GB. It now
-  accumulates into one slice: 4.4 ms and 4.0 MB, and the default path improved
-  4.4x in time and 19x in allocation as well. Found by a benchmark; every test
-  passed before and after.
-
-### Not yet implemented
+The declared floor stays at 1.22.2; macOS users need Go 1.23 or later.
 
 ---
 
@@ -127,7 +127,7 @@ The declared floor stays at 1.22; macOS users need Go 1.23 or later.
 3. Commit, then tag and push:
 
    ```bash
-   git tag v0.1.0
+   git tag v1.1.0
    git push origin main --tags
    ```
 
