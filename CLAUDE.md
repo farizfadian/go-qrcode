@@ -472,6 +472,14 @@ Only after v1.0.0: consider DataMatrix and Aztec (styling applies), then 1D
 symbologies via `boombuler/barcode` (styling does not apply — the value is SVG
 output and human-readable text). See §1.
 
+**v1.0.0 was tagged 2026-09-02**, and in the same conversation 1D barcode
+support was evaluated against the library's actual consumer and **dropped**.
+Fariz's pipeline feeds JasperReports, which renders 1D codes itself
+(Barcode4J / Barbecue), and web frontends have barcode fonts and JsBarcode —
+so a Go 1D renderer would have had no consumer. DataMatrix and Aztec remain
+possible futures on their merits, if a real consumer ever appears; the
+constraints above still govern that work.
+
 ---
 
 ## 9. Repository conventions
