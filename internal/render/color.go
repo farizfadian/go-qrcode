@@ -8,14 +8,14 @@ import (
 	"strings"
 )
 
-// ErrColorSyntax reports a colour string the rasteriser cannot resolve. CSS
-// colour names and functional notation such as rgb() resolve only in a browser,
-// so they reach SVG untouched but fail here.
+// ErrColorSyntax reports a colour string that is not hex. CSS colour names and
+// functional notation such as rgb() resolve only inside a browser; no renderer
+// here can measure such a colour, so they are rejected rather than passed on.
 var ErrColorSyntax = errors.New("render: not a hex colour")
 
 // NormalizeColor adds a leading '#' to a bare hex colour of 3, 4, 6 or 8
 // digits. Anything else, including CSS names and functional notation, is
-// returned unchanged so it can pass through to SVG.
+// returned unchanged, so ParseColor's rejection names the original input.
 func NormalizeColor(s string) string {
 	if s == "" || s[0] == '#' || !isHexRun(s) {
 		return s

@@ -252,9 +252,14 @@ func (q *QR) WritePNGFile(path string) error
   tests and in `cmd/`.
 - Zero-value `Options` (other than `Content`) must produce a sane default QR
   code. Every default above is normative.
-- Colours accept hex with or without `#`. A bare `ff0000` becomes `#ff0000`.
-  Non-hex strings (`rgb(...)`, `red`) pass through untouched to SVG; for the
-  raster renderer, parse what you can and return a clear error otherwise.
+- Colours accept hex only — 3, 4, 6 or 8 digits, with or without `#`. A bare
+  `ff0000` becomes `#ff0000`. **Non-hex strings (`rgb(...)`, `red`) are
+  rejected by `New` for every output format** — corrected 2026-09-02; this
+  bullet originally said they pass through untouched to SVG, and that was
+  never implemented, deliberately. The contrast and polarity checks in §5 need
+  every colour's numeric luminance, which a CSS string only has inside a
+  browser; and a colour that rendered in SVG but errored in PNG would break
+  the first rule in this list.
 - Exported identifiers get doc comments, starting with the identifier name.
 
 ---

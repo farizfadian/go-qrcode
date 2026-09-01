@@ -124,8 +124,9 @@ jobs:
             ```
 
             Only `Content` is required. Runtime dependencies are limited to
-            `github.com/piglig/go-qr` and `golang.org/x/image`, and the module
-            builds on Go 1.22 and later.
+            `github.com/piglig/go-qr`, `golang.org/x/image` and
+            `github.com/HugoSmits86/nativewebp`, and the module builds on
+            Go 1.22.2 and later.
 
             ### CLI
 

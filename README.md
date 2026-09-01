@@ -101,7 +101,7 @@ just a link.
 go get github.com/farizfadian/go-qrcode
 ```
 
-Requires Go 1.22 or newer.
+Requires Go 1.22.2 or newer.
 
 ---
 
@@ -615,7 +615,7 @@ func New(opts Options) (*QR, error)
 | `Background` | `string` | `"#ffffff"` | Backdrop; `"#00000000"` for transparent |
 | `Dots` | `DotOptions` | square, inherits foreground | Data-module style |
 | `Corners` | `CornerOptions` | square, inherits foreground | Finder-pattern style |
-| `Logo` | `*LogoOptions` | `nil` | Centre logo — **not yet implemented** |
+| `Logo` | `*LogoOptions` | `nil` | Centre logo — frame, radii, background, auto-sizing |
 
 ### Rendering
 
